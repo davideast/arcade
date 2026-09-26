@@ -35,17 +35,3 @@ Tic-tac-toe and Connect Four fit. On larger boards, a full-board win check runs 
 With win lines split into four direction functions, five in a row compiles up to 11x11; at 12x12 one direction's lines exceed the chain limit. Compiling is not the same as fitting the runtime budget.
 
 Movement games measured earlier with a config document, counters, and move-type gates: checkers and chess (with checkmate derived by the client) fit on 8x8.
-
-## Pyric's module resolver: current limitations
-
-These are Pyric limitations, not Firestore ones; production accepts the same expressions once resolved. Work around them until they're fixed:
-
-| Rejected inside a module | Workaround |
-|---|---|
-| A method on a field of a `get()` or `getAfter()` result, or on a `let` or parameter bound to one (`get(p).data.players.size()`) | Compare with `==` or test membership with `in`, which are operators. Store what you'd compute (a `size` field kept equal to `players.size()` by the rule that changes it) |
-| A method on a map or set passed as a parameter (`valid(request.resource.data.shot)` calling `shot.keys()`) | Write `request.resource.data.shot.keys()` in full, or call a helper function at each use instead of passing its result |
-| `string()` and `int()` | Convert in the main file, where path variables live, and pass the result: `allow create: if cardCreate(database, matchId, int(i));` |
-
-## Sandbox speed
-
-Pyric's sandbox currently re-parses the whole ruleset on every rule check, so a check costs time in proportion to the ruleset's size (about 150 ms each with six games' rules, about 60 KB resolved). A 140-document batch then takes about 20 seconds, and a full rules test takes minutes. Keep a fast test mode for removal probes, and expect large batches to be slow under `vite dev` until that's fixed.

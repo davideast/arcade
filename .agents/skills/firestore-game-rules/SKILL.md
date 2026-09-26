@@ -22,7 +22,7 @@ Authorize from `resource.data`. The writer controls every field of `request.reso
 
 2. **Design the documents.** Use the stdlib field convention: `host` and `guest` (UIDs, `guest` is `''` while waiting), `currentTurn` (`'host'` or `'guest'`), `status` (`'waiting'`, `'playing'`, `'won'`, `'draw'`, `'resigned'`), `winner`, `moveCount`. Record what a move touched (`lastMove`, and for multi-square moves the extra squares) so rules can address it without searching. For more than two players, keep `players` as a list, a `turn` index, and per-player counts. Put per-item private data in its own documents (one per card, one fleet per player). Complete when you can write the create payload and one move's before and after documents by hand.
 
-3. **Write the rules as a module per game.** Give each game its own `games/<game>/<game>.rules` module (`rules_version = '2+modules'`) that imports the stdlib (`lobby`, `turns`, `state`, `lifecycle`, and others) and exports one function per transition. A main `firestore.modules.rules` imports each game's module by relative path and holds only the `match` blocks. Call `rules_stdlib_list`, then `rules_stdlib_get` for each module you import; never guess a function name or signature. Structure the rules with [references/patterns.md](references/patterns.md), and work around the module limitations in [references/limits.md](references/limits.md). Complete when every state transition (create, join, cancel, move, win, draw, resign) has its own `allow` and each move rule checks the whole move.
+3. **Write the rules as a module per game.** Give each game its own `games/<game>/<game>.rules` module (`rules_version = '2+modules'`) that imports the stdlib (`lobby`, `turns`, `state`, `lifecycle`, and others) and exports one function per transition. A main `firestore.modules.rules` imports each game's module by relative path and holds only the `match` blocks. Call `rules_stdlib_list`, then `rules_stdlib_get` for each module you import; never guess a function name or signature. Structure the rules with [references/patterns.md](references/patterns.md), and keep them inside the limits in [references/limits.md](references/limits.md). Complete when every state transition (create, join, cancel, move, win, draw, resign) has its own `allow` and each move rule checks the whole move.
 
 4. **Resolve.** Production does not understand `2+modules`. Run `pyric firestore rules resolve firestore.modules.rules --out firestore.rules` (or `rules_resolve_modules`) to produce a plain `rules_version = '2'` file; that file is what tests read and what deploys. Under `vite dev`, `pyric()` resolves and hot-reloads module files itself. Complete when the resolve succeeds and `firestore_lint_rules` reports no errors.
 
@@ -56,7 +56,8 @@ const guest = getFirestore(sandbox.withAuth({ uid: 'guest-uid' }));
 
 - Share the write-list builders between the client and the test, so the test proves exactly what the browser sends.
 - Derive cheats from each real move: the same write out of turn, by a stranger, with one field wrong, with an extra field, with one more square changed, with the claim changed. Seed late-game positions with `setDocument` to test wins, promotions and special moves that random play rarely reaches.
-- Give the test a fast mode (one short game) for removal probes; the full run can take minutes on a large ruleset.
+- Run the full test for every removal probe. The sandbox parses a ruleset once, so six games' rules tests take about 15 seconds together.
+- Probe a check again whenever you rewrite it, even when its meaning is unchanged. Rewriting the arcade's rules found 8 of 29 rewritten checks that no case failed without, each fixed by adding a cheat.
 
 ## Cases every game must pass
 
@@ -100,4 +101,4 @@ Randomness and a host-dealt deck are trusted, not enforced: rules have no random
 ## References
 
 - [references/patterns.md](references/patterns.md): the rule patterns, with the checks each one needs.
-- [references/limits.md](references/limits.md): Firestore's limits, the module resolver's current limitations, and their workarounds.
+- [references/limits.md](references/limits.md): Firestore's compiler and evaluator limits, and how they shape game rules.

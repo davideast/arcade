@@ -24,7 +24,7 @@ service cloud.firestore {
 }
 ```
 
-Relative imports resolve from the importing module's directory, and a module may import the stdlib or other modules. Keep `match` blocks, path variables, and any `string()`/`int()` conversions in the main file, and pass plain values into module functions (see [limits.md](limits.md)).
+Relative imports resolve from the importing module's directory, and a module may import the stdlib or other modules. Keep `match` blocks and path variables in the main file and pass path segments into module functions as they are; a module converts them with `string()` or `int()` where it needs to.
 
 ## Lobby: create, join, cancel
 
@@ -78,8 +78,6 @@ function placedOneCell() {
 - With cells as top-level fields instead, drop the board `diff()` and list the cell in the document `diff()`: `hasOnly(['lastMove', 'currentTurn', 'moveCount', 'status', 'winner', after.lastMove])`.
 
 Map keys can be any string expression. Production accepts a stored field value, a function parameter, a `let` binding, a value read from a `get()` result, and a concatenated name such as `b['c' + string(col) + 'r' + string(row)]`. Nested map diffs are exact: a two-cell change fails `hasOnly([lastMove])`.
-
-Inside a `2+modules` module, Pyric's resolver currently rejects the `let before = resource.data; after.board.diff(...)` form (a method on a `let`-bound document) and `string()`. In a module, write `request.resource.data.board.diff(resource.data.board)` in full and do conversions in the main file; see [limits.md](limits.md).
 
 ## Gravity
 
