@@ -56,7 +56,7 @@ export function canPlay(card: Card, color: string, value: string): boolean {
 /** The sheet frame for a card face. */
 export function frameFor(card: Card, chosen?: string): string {
   if (card === 'xw' && chosen) return `wild-${chosen}`;
-  if (card === 'x+' && chosen) return `wild-${chosen}`;
+  if (card === 'x+' && chosen) return `wild4-${chosen}`;
   return `card-${card}`;
 }
 
@@ -68,8 +68,9 @@ export function cardFrames(): Record<string, readonly [number, number, number, n
     for (let v = 0; v <= 5; v++) frames[`card-${c}${v}`] = at(v, i);
     for (let v = 6; v <= 9; v++) frames[`card-${c}${v}`] = at(v - 6, 4 + i);
     frames[`card-${c}s`] = at(5, 4 + i);
-    frames[`card-${c}d`] = at(0, 8 + i);
-    frames[`card-${c}r`] = at(3, 8 + i);
+    frames[`card-${c}r`] = at(0, 8 + i);
+    frames[`card-${c}d`] = at(1, 8 + i);
+    frames[`wild4-${c}`] = at(3, 8 + i);
     frames[`wild-${c}`] = at(5, 8 + i);
   });
   frames['card-back'] = at(4, 4);
