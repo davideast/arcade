@@ -87,6 +87,7 @@ export class Button {
   private readonly frameImage: Phaser.GameObjects.NineSlice;
   private focused = false;
   private enabled: boolean;
+  private destroyed = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -133,21 +134,29 @@ export class Button {
   }
 
   press(): void {
-    if (!this.enabled) return;
+    if (!this.enabled || this.destroyed) return;
     this.scene.tweens.add({ targets: this.container, y: this.container.y + 1, duration: 40, yoyo: true });
     this.onPress();
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.container.destroy();
   }
 
   private render(): void {
+    if (this.destroyed) return;
     const fill = this.options.fill ?? 'purple';
     this.background.setFillStyle(PALETTE[this.focused && this.enabled ? 'orange' : fill]);
     this.label.setColor(css(this.enabled ? (this.focused ? 'ink' : this.options.color ?? 'cream') : 'lavender'));
     this.container.setAlpha(this.enabled ? 1 : 0.6);
   }
+}
+
+/** Anything keyboard navigation can focus and press. */
+export interface Focusable {
+  setFocus(focused: boolean): unknown;
+  press(): void;
 }
 
 /**
@@ -156,15 +165,24 @@ export class Button {
  */
 export class FocusGroup {
   private index = -1;
-  private readonly keys: Phaser.Input.Keyboard.Key[] = [];
+  private readonly bindings: Array<[Phaser.Input.Keyboard.Key, () => void]> = [];
+  private suspended = false;
 
-  constructor(private readonly scene: Phaser.Scene, private buttons: Button[] = []) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private buttons: Focusable[] = [],
+    private readonly modal = false,
+  ) {
     const keyboard = scene.input.keyboard;
     if (!keyboard) return;
     const on = (code: number, handler: () => void) => {
       const key = keyboard.addKey(code, true);
-      key.on('down', handler);
-      this.keys.push(key);
+      const guarded = () => {
+        const modalOpen = (this.scene.data.get('modalCount') ?? 0) > 0;
+        if (!this.suspended && (this.modal || !modalOpen)) handler();
+      };
+      key.on('down', guarded);
+      this.bindings.push([key, guarded]);
     };
     on(Phaser.Input.Keyboard.KeyCodes.DOWN, () => this.move(1));
     on(Phaser.Input.Keyboard.KeyCodes.RIGHT, () => this.move(1));
@@ -175,17 +193,22 @@ export class FocusGroup {
     on(Phaser.Input.Keyboard.KeyCodes.SPACE, () => this.current()?.press());
   }
 
-  set(buttons: Button[]): void {
-    for (const b of this.buttons) b.setFocus(false);
+  /** Replace the items. The old items are not touched; their owner may have destroyed them. */
+  set(buttons: Focusable[]): void {
     this.buttons = buttons;
     this.index = -1;
   }
 
-  destroy(): void {
-    for (const key of this.keys) key.removeAllListeners();
+  /** Ignore keys while another group (an overlay) has them. */
+  suspend(suspended: boolean): void {
+    this.suspended = suspended;
   }
 
-  private current(): Button | undefined {
+  destroy(): void {
+    for (const [key, handler] of this.bindings) key.off('down', handler);
+  }
+
+  private current(): Focusable | undefined {
     return this.index >= 0 ? this.buttons[this.index] : undefined;
   }
 
@@ -246,8 +269,10 @@ export function overlay(
     b.container.setPosition((width - 100) / 2, (height - boxHeight) / 2 + 40 + (body ? 20 : 0) + i * 20).setDepth(902);
     return b;
   });
-  const focus = new FocusGroup(scene, buttons);
+  scene.data.set('modalCount', (scene.data.get('modalCount') ?? 0) + 1);
+  const focus = new FocusGroup(scene, buttons, true);
   const close = () => {
+    scene.data.set('modalCount', Math.max(0, (scene.data.get('modalCount') ?? 1) - 1));
     focus.destroy();
     for (const b of buttons) b.destroy();
     box.destroy();

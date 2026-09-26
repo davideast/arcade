@@ -62,20 +62,22 @@ export interface OpenMatch {
   id: string;
   host: string;
   createdAt: number;
+  data: Record<string, unknown>;
 }
 
-/** Matches with an open seat, newest first. */
-export function watchOpenMatches<S, M>(
+/** Matches with an open seat in `collectionId`, newest first. */
+export function watchOpenMatches(
   { db }: Connection,
-  def: GameDefinition<S, M>,
+  collectionId: string,
   onChange: (matches: OpenMatch[]) => void,
 ): Unsubscribe {
-  const open = query(collection(db, def.id), where('status', '==', 'waiting'));
+  const open = query(collection(db, collectionId), where('status', '==', 'waiting'));
   return onSnapshot(open, (snap) => {
     const matches = snap.docs.map((d) => ({
       id: d.id,
       host: d.data().host as string,
       createdAt: d.data().createdAt?.toMillis?.() ?? 0,
+      data: d.data(),
     }));
     onChange(matches.sort((a, b) => b.createdAt - a.createdAt));
   });

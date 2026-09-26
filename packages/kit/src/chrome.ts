@@ -57,7 +57,7 @@ export function matchChrome(
       players.forEach((p, i) => {
         const y = SIDE.y + 46 + i * 12;
         if (p.active) {
-          playerObjects.push(scene.add.rectangle(SIDE.x + 3, y - 2, SIDE.width - 6, 11, PALETTE.purple).setOrigin(0, 0));
+          playerObjects.push(scene.add.rectangle(SIDE.x + 3, y - 2, SIDE.width - 6, 11, PALETTE.maroon).setOrigin(0, 0));
         }
         if (p.mark) playerObjects.push(text(scene, SIDE.x + 6, y, p.mark, { color: p.markColor ?? 'cream' }));
         const name = `${p.name}${p.you ? ' (you)' : ''}`;
