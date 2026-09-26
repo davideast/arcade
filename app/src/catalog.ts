@@ -10,6 +10,7 @@ import { TicTacToeScene, ticTacToe } from '@games/tictactoe';
 import { UnoScene, createUno, joinUno } from '@games/uno';
 import { PoolScene, createPool, joinPool } from '@games/pool';
 import { BattleshipScene, createBattleship, joinBattleship } from '@games/battleship';
+import { ChessScene, createChess, joinChess } from '@games/chess';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
@@ -77,7 +78,17 @@ export const GAMES: ArcadeGame[] = [
     create: (c) => createBattleship(c),
     join: (c, id) => joinBattleship(c, id),
   },
-  { id: 'chess', title: 'Chess', sheetKey: 'sheet-chess', sheetUrl: chessSheet, players: '2', seats: twoSeats },
+  {
+    id: 'chess',
+    title: 'Chess',
+    sheetKey: 'sheet-chess',
+    sheetUrl: chessSheet,
+    players: '2',
+    scene: ChessScene,
+    seats: twoSeats,
+    create: (c) => createChess(c),
+    join: (c, id) => joinChess(c, id),
+  },
   { id: 'checkers', title: 'Checkers', sheetKey: 'sheet-checkers', sheetUrl: checkersSheet, players: '2', seats: twoSeats },
 ];
 
