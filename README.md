@@ -9,7 +9,7 @@ bun install
 bun run dev        # http://localhost:5173
 ```
 
-Open a second tab to play the other seat. Each tab signs in as its own anonymous user.
+Open a second browser context (another browser profile or a private window) to play the other seat. Each browser keeps one anonymous player across reloads and tabs.
 
 ```bash
 bun run test       # resolve the rules, then run the rules harness

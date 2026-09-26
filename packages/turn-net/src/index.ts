@@ -5,7 +5,7 @@
  */
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
 import {
-  browserSessionPersistence,
+  browserLocalPersistence,
   getAuth,
   onAuthStateChanged,
   setPersistence,
@@ -44,11 +44,12 @@ export function connect(options: FirebaseOptions): Connection {
 }
 
 /**
- * Sign this tab in. Session persistence keeps each tab's identity separate,
- * so two tabs can play the two seats of one match.
+ * Sign this browser in. Local persistence keeps the same anonymous player
+ * across reloads and tabs, so every tab of one browser is one player; playing
+ * both seats of a match takes two browser profiles or a private window.
  */
 export async function signIn(auth: Auth): Promise<User> {
-  await setPersistence(auth, browserSessionPersistence);
+  await setPersistence(auth, browserLocalPersistence);
   const existing = await new Promise<User | null>((resolve) => {
     const stop = onAuthStateChanged(auth, (user) => {
       stop();
