@@ -12,5 +12,5 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true
   },
-  "include": ["app/src", "app/*.ts", "packages/*/src", "games/*/src", "tools"]
+  "include": ["app/src", "app/*.ts", "packages/*/src", "games/*/src", "tools", "deploy"]
 }

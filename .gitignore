@@ -3,3 +3,5 @@ dist/
 .pyric/
 .DS_Store
 .overnight/
+firebase.json
+.firebaserc
