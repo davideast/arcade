@@ -1,12 +1,16 @@
+rules_version = '2+modules';
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn, turnFlipped } from 'turns';
+import { isPlaying, moveIncremented } from 'state';
+
 // Tic-tac-toe match rules. The match document follows the stdlib convention
 // (host, guest, currentTurn, status, winner, moveCount) plus a `board` map of
 // nine cells named c<col>r<row> and `lastMove`, the cell a move filled.
 //
 // Every transition that accepts a move checks the whole move: one empty cell,
 // the mover's mark, and nothing else changed. Win and draw claims included.
-
-// Calls lobby, lifecycle, turns and state functions; the main rules file
-// imports them, because a local module cannot import.
 
 function cellNames() {
   return ['c0r0', 'c1r0', 'c2r0', 'c0r1', 'c1r1', 'c2r1', 'c0r2', 'c1r2', 'c2r2'];

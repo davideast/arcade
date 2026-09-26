@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "overrides": {
-    "pyric": "file:./vendor/pyric/pyric-local-1.tgz",
-    "@pyric/cli": "file:./vendor/pyric/pyric-cli-local-1.tgz",
-    "@pyric/ui": "file:./vendor/pyric/pyric-ui-local-1.tgz"
+    "pyric": "file:./vendor/pyric/pyric-local-2.tgz",
+    "@pyric/cli": "file:./vendor/pyric/pyric-cli-local-2.tgz",
+    "@pyric/ui": "file:./vendor/pyric/pyric-ui-local-2.tgz"
   },
   "dependencies": {
     "firebase": "^12.12.0",
@@ -25,9 +25,9 @@
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "@pyric/cli": "file:./vendor/pyric/pyric-cli-local-1.tgz",
-    "@pyric/ui": "file:./vendor/pyric/pyric-ui-local-1.tgz",
-    "pyric": "file:./vendor/pyric/pyric-local-1.tgz",
+    "@pyric/cli": "file:./vendor/pyric/pyric-cli-local-2.tgz",
+    "@pyric/ui": "file:./vendor/pyric/pyric-ui-local-2.tgz",
+    "pyric": "file:./vendor/pyric/pyric-local-2.tgz",
     "@types/bun": "^1.3.0",
     "typescript": "^5.9.0"
   }

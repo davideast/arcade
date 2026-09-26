@@ -31,11 +31,11 @@ bun run typecheck
 ## Add a game
 
 1. Write `games/<name>/src/logic.ts` with a `GameDefinition`: initial state, legal moves, apply, outcome, and document fields.
-2. Write `games/<name>/<name>.rules` and import its functions in `app/firestore.modules.rules`. Local rules modules can't import, so stdlib imports go in the main file.
+2. Write `games/<name>/<name>.rules`, with its own stdlib imports, and import its exports in `app/firestore.modules.rules`.
 3. Add `rules.test.ts` that calls `runHarness`, plus cheats specific to the game.
 4. Probe each rules check with `bun tools/removal-probe.ts` and confirm the harness catches its removal.
 5. Write the Phaser scene with `@games/kit`, and add it to the app.
 
 ## Rules workflow
 
-`app/vite.config.ts` resolves `firestore.modules.rules` with the Pyric CLI whenever any `.rules` file changes, and Pyric serves the generated `firestore.rules`. Edit the module files, not `firestore.rules`.
+`pyric()` serves `app/firestore.modules.rules` and the game rules files it imports, and hot-reloads when any of them changes. `bun run rules:resolve` writes the resolved `app/firestore.rules` that the rules harness tests.

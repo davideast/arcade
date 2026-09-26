@@ -4,10 +4,6 @@ rules_version = '2+modules';
 // imported here; each match block starts every update rule with a comparison
 // the other transitions can't pass, so a write pays for its own branch only.
 
-import { validCreate, validJoin, canCancel } from 'lobby';
-import { onlyFieldsChanged } from 'lifecycle';
-import { isMyTurn, turnFlipped } from 'turns';
-import { isPlaying, moveIncremented } from 'state';
 import {
   ticTacToeCreate, ticTacToeJoin, ticTacToeCancel,
   ticTacToeMove, ticTacToeWin, ticTacToeDraw, ticTacToeResign

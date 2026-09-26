@@ -3,17 +3,32 @@ service cloud.firestore {
   function validCreate() {
     return request.auth != null && request.resource.data.host == request.auth.uid && request.resource.data.guest == '' && request.resource.data.status == 'waiting';
   }
+  function _games_tictactoe_tictactoe__cellNames() {
+    return ['c0r0', 'c1r0', 'c2r0', 'c0r1', 'c1r1', 'c2r1', 'c0r2', 'c1r2', 'c2r2'];
+  }
+  function ticTacToeCreate() {
+    return validCreate() && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount', 'board', 'lastMove', 'createdAt']) && request.resource.data.currentTurn == 'host' && request.resource.data.winner == '' && request.resource.data.moveCount == 0 && request.resource.data.lastMove == '' && request.resource.data.createdAt == request.time && request.resource.data.board.keys().hasOnly(_games_tictactoe_tictactoe__cellNames()) && request.resource.data.board.size() == 9 && request.resource.data.board.values().hasOnly(['']);
+  }
   function lobby__isWaiting() {
     return resource.data.status == 'waiting' && resource.data.guest == '';
   }
   function validJoin() {
     return request.auth != null && lobby__isWaiting() && request.resource.data.guest == request.auth.uid && request.auth.uid != resource.data.host && request.resource.data.status == 'playing' && request.resource.data.host == resource.data.host;
   }
+  function onlyFieldsChanged(fields) {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+  }
+  function ticTacToeJoin() {
+    return validJoin() && onlyFieldsChanged(['guest', 'status']);
+  }
   function canCancel() {
     return request.auth != null && resource.data.status == 'waiting' && request.auth.uid == resource.data.host;
   }
-  function onlyFieldsChanged(fields) {
-    return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+  function ticTacToeCancel() {
+    return canCancel();
+  }
+  function isPlaying() {
+    return resource.data.status == 'playing';
   }
   function isMyTurn() {
     return resource.data.currentTurn == 'host' && request.auth.uid == resource.data.host || resource.data.currentTurn == 'guest' && request.auth.uid == resource.data.guest;
@@ -21,23 +36,8 @@ service cloud.firestore {
   function turnFlipped() {
     return resource.data.currentTurn == 'host' && request.resource.data.currentTurn == 'guest' || resource.data.currentTurn == 'guest' && request.resource.data.currentTurn == 'host';
   }
-  function isPlaying() {
-    return resource.data.status == 'playing';
-  }
   function moveIncremented() {
     return request.resource.data.moveCount == resource.data.moveCount + 1;
-  }
-  function _games_tictactoe_tictactoe__cellNames() {
-    return ['c0r0', 'c1r0', 'c2r0', 'c0r1', 'c1r1', 'c2r1', 'c0r2', 'c1r2', 'c2r2'];
-  }
-  function ticTacToeCreate() {
-    return validCreate() && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount', 'board', 'lastMove', 'createdAt']) && request.resource.data.currentTurn == 'host' && request.resource.data.winner == '' && request.resource.data.moveCount == 0 && request.resource.data.lastMove == '' && request.resource.data.createdAt == request.time && request.resource.data.board.keys().hasOnly(_games_tictactoe_tictactoe__cellNames()) && request.resource.data.board.size() == 9 && request.resource.data.board.values().hasOnly(['']);
-  }
-  function ticTacToeJoin() {
-    return validJoin() && onlyFieldsChanged(['guest', 'status']);
-  }
-  function ticTacToeCancel() {
-    return canCancel();
   }
   function _games_tictactoe_tictactoe__moveBasics() {
     return request.auth != null && isPlaying() && isMyTurn() && turnFlipped() && moveIncremented();
@@ -78,4 +78,4 @@ service cloud.firestore {
     }
   }
 }
-// @pyric-source-map: [{"generatedLine":2,"authoredLine":16,"authoredCol":1,"authoredFile":"firestore.rules"},{"generatedLine":3,"authoredLine":23,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":6,"authoredLine":17,"authoredCol":1,"authoredFile":"lobby"},{"generatedLine":9,"authoredLine":31,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":12,"authoredLine":41,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":15,"authoredLine":43,"authoredCol":8,"authoredFile":"lifecycle"},{"generatedLine":18,"authoredLine":15,"authoredCol":8,"authoredFile":"turns"},{"generatedLine":21,"authoredLine":23,"authoredCol":8,"authoredFile":"turns"},{"generatedLine":24,"authoredLine":16,"authoredCol":8,"authoredFile":"state"},{"generatedLine":27,"authoredLine":21,"authoredCol":8,"authoredFile":"state"},{"generatedLine":30,"authoredLine":11,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":33,"authoredLine":44,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":36,"authoredLine":58,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":39,"authoredLine":62,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":42,"authoredLine":30,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":45,"authoredLine":35,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":48,"authoredLine":66,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":51,"authoredLine":15,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":54,"authoredLine":19,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":57,"authoredLine":70,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":60,"authoredLine":76,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":63,"authoredLine":82,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":64,"authoredLine":83,"authoredCol":3,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":67,"authoredLine":17,"authoredCol":3,"authoredFile":"firestore.modules.rules"},{"generatedLine":68,"authoredLine":18,"authoredCol":5,"authoredFile":"firestore.modules.rules"},{"generatedLine":69,"authoredLine":19,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.auth != null"},{"generatedLine":70,"authoredLine":20,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"ticTacToeCreate()"},{"generatedLine":71,"authoredLine":21,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"ticTacToeCancel()"},{"generatedLine":72,"authoredLine":22,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"resource.data.status == 'waiting' && ticTacToeJoin()"},{"generatedLine":73,"authoredLine":23,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'playing' && resource.data.status == 'playing' && ticTacToeMove()"},{"generatedLine":74,"authoredLine":24,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.winner == 'host' && request.resource.data.status == 'won' && ticTacToeWin('host')"},{"generatedLine":75,"authoredLine":25,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.winner == 'guest' && request.resource.data.status == 'won' && ticTacToeWin('guest')"},{"generatedLine":76,"authoredLine":26,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'draw' && ticTacToeDraw()"},{"generatedLine":77,"authoredLine":27,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'resigned' && ticTacToeResign()"}]
+// @pyric-source-map: [{"generatedLine":2,"authoredLine":12,"authoredCol":1,"authoredFile":"firestore.rules"},{"generatedLine":3,"authoredLine":23,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":6,"authoredLine":15,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":9,"authoredLine":48,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":12,"authoredLine":17,"authoredCol":1,"authoredFile":"lobby"},{"generatedLine":15,"authoredLine":31,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":18,"authoredLine":43,"authoredCol":8,"authoredFile":"lifecycle"},{"generatedLine":21,"authoredLine":62,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":24,"authoredLine":41,"authoredCol":8,"authoredFile":"lobby"},{"generatedLine":27,"authoredLine":66,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":30,"authoredLine":16,"authoredCol":8,"authoredFile":"state"},{"generatedLine":33,"authoredLine":15,"authoredCol":8,"authoredFile":"turns"},{"generatedLine":36,"authoredLine":23,"authoredCol":8,"authoredFile":"turns"},{"generatedLine":39,"authoredLine":21,"authoredCol":8,"authoredFile":"state"},{"generatedLine":42,"authoredLine":34,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":45,"authoredLine":39,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":48,"authoredLine":70,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":51,"authoredLine":19,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":54,"authoredLine":23,"authoredCol":1,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":57,"authoredLine":74,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":60,"authoredLine":80,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":63,"authoredLine":86,"authoredCol":8,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":64,"authoredLine":87,"authoredCol":3,"authoredFile":"../games/tictactoe/tictactoe"},{"generatedLine":67,"authoredLine":13,"authoredCol":3,"authoredFile":"firestore.modules.rules"},{"generatedLine":68,"authoredLine":14,"authoredCol":5,"authoredFile":"firestore.modules.rules"},{"generatedLine":69,"authoredLine":15,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.auth != null"},{"generatedLine":70,"authoredLine":16,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"ticTacToeCreate()"},{"generatedLine":71,"authoredLine":17,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"ticTacToeCancel()"},{"generatedLine":72,"authoredLine":18,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"resource.data.status == 'waiting' && ticTacToeJoin()"},{"generatedLine":73,"authoredLine":19,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'playing' && resource.data.status == 'playing' && ticTacToeMove()"},{"generatedLine":74,"authoredLine":20,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.winner == 'host' && request.resource.data.status == 'won' && ticTacToeWin('host')"},{"generatedLine":75,"authoredLine":21,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.winner == 'guest' && request.resource.data.status == 'won' && ticTacToeWin('guest')"},{"generatedLine":76,"authoredLine":22,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'draw' && ticTacToeDraw()"},{"generatedLine":77,"authoredLine":23,"authoredCol":7,"authoredFile":"firestore.modules.rules","expression":"request.resource.data.status == 'resigned' && ticTacToeResign()"}]
