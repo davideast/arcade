@@ -27,6 +27,7 @@
       "name": "@games/app",
       "dependencies": {
         "@games/battleship": "workspace:*",
+        "@games/checkers": "workspace:*",
         "@games/chess": "workspace:*",
         "@games/kit": "workspace:*",
         "@games/pool": "workspace:*",
@@ -37,6 +38,19 @@
     },
     "games/battleship": {
       "name": "@games/battleship",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
+    "games/checkers": {
+      "name": "@games/checkers",
       "dependencies": {
         "@games/kit": "workspace:*",
         "@games/turn-net": "workspace:*",
@@ -275,6 +289,8 @@
     "@games/app": ["@games/app@workspace:app"],
 
     "@games/battleship": ["@games/battleship@workspace:games/battleship"],
+
+    "@games/checkers": ["@games/checkers@workspace:games/checkers"],
 
     "@games/chess": ["@games/chess@workspace:games/chess"],
 

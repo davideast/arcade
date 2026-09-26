@@ -1,0 +1,113 @@
+rules_version = '2+modules';
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn, turnFlipped } from 'turns';
+import { isPlaying, moveIncremented } from 'state';
+
+// Checkers match rules. The host plays dark ('d', king 'D') and moves first;
+// the guest plays light ('l', king 'L'). The match document follows the stdlib
+// convention (host, guest, currentTurn, status, winner, moveCount) plus board
+// (the 32 playable squares by name), prevBoard, and lastMove {path, captures}.
+//
+// These rules check what one move can change, and the geometry of a single
+// step or jump. They don't check multi-jump geometry,
+// mandatory captures, or a win claim; the clients replay each move from
+// prevBoard and flag one that isn't legal checkers.
+
+function checkersStartBoard() {
+  return {
+    'b8': 'l', 'd8': 'l', 'f8': 'l', 'h8': 'l',
+    'a7': 'l', 'c7': 'l', 'e7': 'l', 'g7': 'l',
+    'b6': 'l', 'd6': 'l', 'f6': 'l', 'h6': 'l',
+    'a5': '', 'c5': '', 'e5': '', 'g5': '',
+    'b4': '', 'd4': '', 'f4': '', 'h4': '',
+    'a3': 'd', 'c3': 'd', 'e3': 'd', 'g3': 'd',
+    'b2': 'd', 'd2': 'd', 'f2': 'd', 'h2': 'd',
+    'a1': 'd', 'c1': 'd', 'e1': 'd', 'g1': 'd'
+  };
+}
+
+// File and rank of a square name as numbers. Map lookups, since module
+// functions can't call int().
+function ckFile(sq) {
+  return {'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5, 'f': 6, 'g': 7, 'h': 8}[sq[0:1]];
+}
+
+function ckRank(sq) {
+  return {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8}[sq[1:2]];
+}
+
+// One diagonal square.
+function ckStep(from, to) {
+  return (ckFile(to) - ckFile(from) == 1 || ckFile(to) - ckFile(from) == -1)
+    && (ckRank(to) - ckRank(from) == 1 || ckRank(to) - ckRank(from) == -1);
+}
+
+// Two diagonal squares, over the captured square between them.
+function ckJump(from, to, captured) {
+  return (ckFile(to) - ckFile(from) == 2 || ckFile(to) - ckFile(from) == -2)
+    && (ckRank(to) - ckRank(from) == 2 || ckRank(to) - ckRank(from) == -2)
+    && ckFile(captured) * 2 == ckFile(from) + ckFile(to)
+    && ckRank(captured) * 2 == ckRank(from) + ckRank(to);
+}
+
+export function checkersCreate() {
+  return validCreate()
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
+         'board', 'prevBoard', 'lastMove', 'createdAt'])
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.board == checkersStartBoard()
+    && request.resource.data.prevBoard == checkersStartBoard()
+    && request.resource.data.lastMove == {'path': [], 'captures': []};
+}
+
+export function checkersJoin() {
+  return validJoin() && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function checkersCancel() {
+  return canCancel();
+}
+
+// One move by the player on turn: a step (two squares, no captures) or a run
+// of jumps (one capture per hop). A man is crowned only on the far row.
+export function checkersMove() {
+  let dark = resource.data.currentTurn == 'host';
+  let path = request.resource.data.lastMove.path;
+  let from = path[0];
+  let to = path[path.size() - 1];
+  let piece = resource.data.board[from];
+  return request.auth != null && isPlaying() && isMyTurn() && turnFlipped() && moveIncremented()
+    && request.resource.data.lastMove.keys().hasOnly(['path', 'captures'])
+    && request.resource.data.lastMove.path.size() >= 2
+    && (request.resource.data.lastMove.captures.size() == request.resource.data.lastMove.path.size() - 1
+        || (request.resource.data.lastMove.captures.size() == 0 && request.resource.data.lastMove.path.size() == 2))
+    && (path.size() > 2
+        || (request.resource.data.lastMove.captures.size() == 0
+            ? ckStep(from, to)
+            : ckJump(from, to, request.resource.data.lastMove.captures[0])))
+    && piece in (dark ? ['d', 'D'] : ['l', 'L'])
+    && resource.data.board[to] == ''
+    && request.resource.data.board[from] == ''
+    && (request.resource.data.board[to] == piece
+        || (piece == (dark ? 'd' : 'l') && request.resource.data.board[to] == (dark ? 'D' : 'L')
+            && to[1:2] == (dark ? '8' : '1')))
+    && request.resource.data.board.keys().hasOnly(resource.data.board.keys())
+    && request.resource.data.board.diff(resource.data.board).affectedKeys()
+         .hasOnly([from, to] + request.resource.data.lastMove.captures)
+    && request.resource.data.prevBoard == resource.data.board
+    && request.resource.data.winner == (request.resource.data.status == 'won' ? resource.data.currentTurn : '')
+    && onlyFieldsChanged(['board', 'prevBoard', 'lastMove', 'currentTurn', 'moveCount', 'status', 'winner']);
+}
+
+export function checkersResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}
