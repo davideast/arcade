@@ -32,6 +32,7 @@ import type { GameDefinition, Seat } from './types.ts';
 
 export * from './types.ts';
 export * from './transitions.ts';
+export * from './rematch.ts';
 
 export interface Connection {
   db: Firestore;

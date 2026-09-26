@@ -21,6 +21,7 @@ import {
 } from '../games/battleship/battleship';
 import { chessCreate, chessJoin, chessCancel, chessMove, chessResign } from '../games/chess/chess';
 import { checkersCreate, checkersJoin, checkersCancel, checkersMove, checkersResign } from '../games/checkers/checkers';
+import { rematchCreate } from '../packages/turn-net/rematch';
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -101,6 +102,10 @@ service cloud.firestore {
       allow update: if resource.data.status == 'waiting' && (checkersJoin());
       allow update: if resource.data.status == 'playing' && request.resource.data.status in ['playing', 'won'] && (checkersMove());
       allow update: if request.resource.data.status == 'resigned' && (checkersResign());
+    }
+    match /rematches/{game}/matches/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if rematchCreate(database, game, matchId);
     }
   }
 }

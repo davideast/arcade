@@ -8,7 +8,7 @@ import {
   type MatchChrome,
   type SheetSpec,
 } from '@games/kit';
-import { cancelMatch, createMatch, resign, watchMatch, type Connection, type MatchView, type Seat } from '@games/turn-net';
+import { cancelMatch, cancelWhenLeft, createdMatch, gameOverWithRematch, joinMatch, resign, watchMatch, type Connection, type MatchView, type Seat } from '@games/turn-net';
 import { isPlayable, legalMoves, squareName, squareOf, type Move } from './checkers.ts';
 import { checkers, positionOf, sideOfSeat, verifyMove, type CheckersDoc, type CheckersFields } from './logic.ts';
 import { moveCheckers } from './net.ts';
@@ -26,6 +26,7 @@ export class CheckersScene extends Phaser.Scene {
   private matchId = '';
   private view: MatchView<CheckersFields> | null = null;
   private stop: (() => void) | null = null;
+  private stopRematch: (() => void) | null = null;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private cursor = squareOf('c3');
   private selected = -1;
@@ -74,12 +75,22 @@ export class CheckersScene extends Phaser.Scene {
       keys.F.on('down', () => this.pick(this.cursor));
     }
 
-    this.stop = watchMatch(this.connection(), checkers, this.matchId, (view) => {
+    const connection = this.connection();
+    const matchId = this.matchId;
+    let waitingHost = false;
+    this.stop = watchMatch(connection, checkers, matchId, (view) => {
       const before = this.view?.doc as CheckersDoc | undefined;
       this.view = view;
+      waitingHost = view?.doc.status === 'waiting' && view.seat === 'host';
       this.onSnapshot(before);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stop?.());
+    const leave = cancelWhenLeft(() => waitingHost, () => cancelMatch(connection, checkers, matchId));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stop?.();
+      this.stopRematch?.();
+      this.stopRematch = null;
+      leave();
+    });
   }
 
   private connection(): Connection {
@@ -144,10 +155,14 @@ export class CheckersScene extends Phaser.Scene {
     try {
       await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/denied|permission/i.test(message)) this.chrome.denied();
-      else this.chrome.notice(message.slice(0, 40));
+      this.report(error);
     }
+  }
+
+  private report(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/denied|permission/i.test(message)) this.chrome.denied();
+    else this.chrome.notice(message.slice(0, 40));
   }
 
   private onSnapshot(before: CheckersDoc | undefined): void {
@@ -239,10 +254,16 @@ export class CheckersScene extends Phaser.Scene {
       const key = `${this.matchId}-${doc.status}`;
       if (this.announced !== key) {
         this.announced = key;
-        this.chrome.gameOver(result, `${how}${forgedNote}`, [
-          { label: 'New match', onPress: () => void this.attempt(async () => { const id = await createMatch(connection, checkers); location.hash = `#/play/checkers/${id}`; }) },
-          { label: 'Arcade', onPress: () => (location.hash = '#/') },
-        ]);
+        const arcade = { label: 'Arcade', onPress: () => (location.hash = '#/') };
+        if (!seat) this.chrome.gameOver(result, `${how}${forgedNote}`, [arcade]);
+        else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${how}${forgedNote}`, {
+          game: checkers.id,
+          matchId: this.matchId,
+          fresh: (uid) => createdMatch(checkers, uid),
+          join: (c, id) => joinMatch(c, checkers, id),
+          open: (id) => (location.hash = `#/play/checkers/${id}`),
+          onError: (error) => this.report(error),
+        }, [arcade]);
       }
     }
   }

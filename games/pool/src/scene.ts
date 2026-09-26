@@ -10,7 +10,7 @@ import {
   type MatchChrome,
   type SheetSpec,
 } from '@games/kit';
-import { cancelMatch, createMatch, resign, watchMatch, type Connection, type MatchView, type Seat } from '@games/turn-net';
+import { cancelMatch, cancelWhenLeft, createdMatch, gameOverWithRematch, joinMatch, resign, watchMatch, type Connection, type MatchView, type Seat } from '@games/turn-net';
 import { groupBalls, groupOf, pool, verifyShot, type PoolDoc, type PoolFields } from './logic.ts';
 import { shootPool } from './net.ts';
 import { BALL_COUNT, BALL_RADIUS, OFF_TABLE, POCKET_CENTERS, TABLE_HEIGHT, TABLE_WIDTH, type Shot } from './physics.ts';
@@ -42,6 +42,7 @@ export class PoolScene extends Phaser.Scene {
   private matchId = '';
   private view: MatchView<PoolFields> | null = null;
   private stop: (() => void) | null = null;
+  private stopRematch: (() => void) | null = null;
   private balls: Phaser.GameObjects.Image[] = [];
   private tray: Phaser.GameObjects.GameObject[] = [];
   private aimDots: Phaser.GameObjects.Rectangle[] = [];
@@ -103,12 +104,22 @@ export class PoolScene extends Phaser.Scene {
     }
 
     this.chrome.setStatus('Loading table');
-    this.stop = watchMatch(this.connection(), pool, this.matchId, (view) => {
+    const connection = this.connection();
+    const matchId = this.matchId;
+    let waitingHost = false;
+    this.stop = watchMatch(connection, pool, matchId, (view) => {
       const before = this.view?.doc as PoolDoc | undefined;
       this.view = view;
+      waitingHost = view?.doc.status === 'waiting' && view.seat === 'host';
       this.onSnapshot(before);
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stop?.());
+    const leave = cancelWhenLeft(() => waitingHost, () => cancelMatch(connection, pool, matchId));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stop?.();
+      this.stopRematch?.();
+      this.stopRematch = null;
+      leave();
+    });
   }
 
   update(): void {
@@ -217,10 +228,14 @@ export class PoolScene extends Phaser.Scene {
     try {
       await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/denied|permission/i.test(message)) this.chrome.denied();
-      else this.chrome.notice(message.slice(0, 40));
+      this.report(error);
     }
+  }
+
+  private report(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/denied|permission/i.test(message)) this.chrome.denied();
+    else this.chrome.notice(message.slice(0, 40));
   }
 
   /** Replay each new shot; animate it when the stored result matches, flag it when it doesn't. */
@@ -303,10 +318,16 @@ export class PoolScene extends Phaser.Scene {
       const key = `${this.matchId}-${doc.status}`;
       if (this.announced !== key) {
         this.announced = key;
-        this.chrome.gameOver(result, `${how}${forgedNote}`, [
-          { label: 'New match', onPress: () => void this.attempt(async () => { const id = await createMatch(connection, pool); location.hash = `#/play/pool/${id}`; }) },
-          { label: 'Arcade', onPress: () => (location.hash = '#/') },
-        ]);
+        const arcade = { label: 'Arcade', onPress: () => (location.hash = '#/') };
+        if (!seat) this.chrome.gameOver(result, `${how}${forgedNote}`, [arcade]);
+        else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${how}${forgedNote}`, {
+          game: pool.id,
+          matchId: this.matchId,
+          fresh: (uid) => createdMatch(pool, uid),
+          join: (c, id) => joinMatch(c, pool, id),
+          open: (id) => (location.hash = `#/play/pool/${id}`),
+          onError: (error) => this.report(error),
+        }, [arcade]);
       }
     }
     this.drawAim();

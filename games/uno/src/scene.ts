@@ -13,9 +13,10 @@ import {
   type PaletteColor,
   type SheetSpec,
 } from '@games/kit';
-import type { Connection } from '@games/turn-net';
+import { cancelWhenLeft, gameOverWithRematch, type Connection } from '@games/turn-net';
 import { COLORS, COLOR_NAMES, canPlay, cardFrames, frameFor, isWild, valueOf, type Card, type Color } from './cards.ts';
-import { createUno, drawUno, playUno, startUno, watchUno, type UnoView } from './net.ts';
+import { COLLECTION, createdMatch } from './logic.ts';
+import { cancelUno, drawUno, joinUno, playUno, startUno, watchUno, type UnoView } from './net.ts';
 
 export const SHEET: SheetSpec = { key: 'sheet-uno', url: '', frames: cardFrames() };
 
@@ -34,6 +35,7 @@ export class UnoScene extends Phaser.Scene {
   private matchId = '';
   private view: UnoView | null = null;
   private stop: (() => void) | null = null;
+  private stopRematch: (() => void) | null = null;
   private table: Phaser.GameObjects.GameObject[] = [];
   private handObjects: Phaser.GameObjects.GameObject[] = [];
   private busy = false;
@@ -58,13 +60,21 @@ export class UnoScene extends Phaser.Scene {
     this.chrome = matchChrome(this, { title: 'Uno', background: 'maroon', onBack: () => (location.hash = '#/') });
     panel(this, PLAY_AREA.x, PLAY_AREA.y, PLAY_AREA.width, PLAY_AREA.height, 'orange', 'green');
     this.chrome.setStatus('Loading table');
-    this.stop = watchUno(this.connection(), this.matchId, (view) => {
+    const connection = this.connection();
+    const matchId = this.matchId;
+    let waitingHost = false;
+    this.stop = watchUno(connection, matchId, (view) => {
       this.view = view;
+      waitingHost = view?.match.status === 'waiting' && view.match.host === this.me();
       this.render();
     });
+    const leave = cancelWhenLeft(() => waitingHost, () => cancelUno(connection, matchId));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.stop?.();
+      this.stopRematch?.();
+      this.stopRematch = null;
       this.closePicker?.();
+      leave();
     });
   }
 
@@ -82,12 +92,16 @@ export class UnoScene extends Phaser.Scene {
     try {
       await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/denied|permission/i.test(message)) this.chrome.denied();
-      else this.chrome.notice(message.slice(0, 40));
+      this.report(error);
     } finally {
       this.busy = false;
     }
+  }
+
+  private report(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/denied|permission/i.test(message)) this.chrome.denied();
+    else this.chrome.notice(message.slice(0, 40));
   }
 
   private name(uid: string): string {
@@ -184,10 +198,16 @@ export class UnoScene extends Phaser.Scene {
       const key = `${this.matchId}-won`;
       if (this.announced !== key) {
         this.announced = key;
-        this.chrome.gameOver(result, seat >= 0 ? `${m.moveCount} turns` : '', [
-          { label: 'New table', onPress: () => void this.attempt(async () => { const id = await createUno(connection); location.hash = `#/play/uno/${id}`; }) },
-          { label: 'Arcade', onPress: () => (location.hash = '#/') },
-        ]);
+        const arcade = { label: 'Arcade', onPress: () => (location.hash = '#/') };
+        if (seat < 0) this.chrome.gameOver(result, '', [arcade]);
+        else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${m.moveCount} turns`, {
+          game: COLLECTION,
+          matchId: this.matchId,
+          fresh: (uid) => ({ ...createdMatch(uid) }),
+          join: joinUno,
+          open: (id) => (location.hash = `#/play/uno/${id}`),
+          onError: (error) => this.report(error),
+        }, [arcade]);
       }
     }
   }

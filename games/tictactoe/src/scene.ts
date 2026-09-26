@@ -14,7 +14,10 @@ import {
 } from '@games/kit';
 import {
   cancelMatch,
-  createMatch,
+  cancelWhenLeft,
+  createdMatch,
+  gameOverWithRematch,
+  joinMatch,
   playMove,
   resign,
   watchMatch,
@@ -54,6 +57,7 @@ export class TicTacToeScene extends Phaser.Scene {
   private view: MatchView<Board> | null = null;
   private matchId = '';
   private stop: (() => void) | null = null;
+  private stopRematch: (() => void) | null = null;
   private announced = '';
   private lastAnimatedMove = -1;
 
@@ -78,11 +82,20 @@ export class TicTacToeScene extends Phaser.Scene {
     this.board = drawGrid(this, LAYOUT, { panel: PALETTE.cream, line: PALETTE.lavender, hover: 0xe8e2f0 }, (i) => this.play(i));
     this.chrome.setStatus('Loading match');
 
-    this.stop = watchMatch(connection, ticTacToe, this.matchId, (view) => {
+    const matchId = this.matchId;
+    let waitingHost = false;
+    this.stop = watchMatch(connection, ticTacToe, matchId, (view) => {
       this.view = view;
+      waitingHost = view?.doc.status === 'waiting' && view.seat === 'host';
       this.render();
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stop?.());
+    const leave = cancelWhenLeft(() => waitingHost, () => cancelMatch(connection, ticTacToe, matchId));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stop?.();
+      this.stopRematch?.();
+      this.stopRematch = null;
+      leave();
+    });
   }
 
   private connection(): Connection {
@@ -93,10 +106,14 @@ export class TicTacToeScene extends Phaser.Scene {
     try {
       await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/denied|permission/i.test(message)) this.chrome.denied();
-      else this.chrome.notice(message.slice(0, 40));
+      this.report(error);
     }
+  }
+
+  private report(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/denied|permission/i.test(message)) this.chrome.denied();
+    else this.chrome.notice(message.slice(0, 40));
   }
 
   private play(index: number): void {
@@ -161,10 +178,16 @@ export class TicTacToeScene extends Phaser.Scene {
       const key = `${this.matchId}-${doc.status}`;
       if (this.announced !== key) {
         this.announced = key;
-        this.chrome.gameOver(result, how, [
-          { label: 'New match', onPress: () => void this.attempt(async () => { const id = await createMatch(connection, ticTacToe); location.hash = `#/play/tictactoe/${id}`; }) },
-          { label: 'Arcade', onPress: () => (location.hash = '#/') },
-        ]);
+        const arcade = { label: 'Arcade', onPress: () => (location.hash = '#/') };
+        if (!seat) this.chrome.gameOver(result, how, [arcade]);
+        else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, how, {
+          game: ticTacToe.id,
+          matchId: this.matchId,
+          fresh: (uid) => createdMatch(ticTacToe, uid),
+          join: (c, id) => joinMatch(c, ticTacToe, id),
+          open: (id) => (location.hash = `#/play/tictactoe/${id}`),
+          onError: (error) => this.report(error),
+        }, [arcade]);
       }
     }
     this.lastAnimatedMove = doc.moveCount;

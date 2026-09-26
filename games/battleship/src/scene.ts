@@ -10,13 +10,15 @@ import {
   type MatchChrome,
   type SheetSpec,
 } from '@games/kit';
-import type { Connection, Seat } from '@games/turn-net';
+import { cancelWhenLeft, gameOverWithRematch, type Connection, type Seat } from '@games/turn-net';
 import {
+  COLLECTION,
   FLEET,
   FLEET_CELLS,
   SHIP_NAMES,
   SIZE,
   canPlace,
+  createdMatch,
   randomFleet,
   shipCells,
   type BoardDoc,
@@ -25,8 +27,8 @@ import {
 } from './logic.ts';
 import {
   cancelBattleship,
-  createBattleship,
   fireBattleship,
+  joinBattleship,
   readyBattleship,
   resignBattleship,
   watchBattleship,
@@ -62,6 +64,7 @@ export class BattleshipScene extends Phaser.Scene {
   private matchId = '';
   private view: BattleshipView | null = null;
   private stop: (() => void) | null = null;
+  private stopRematch: (() => void) | null = null;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private caption!: Phaser.GameObjects.Text;
   private miniCaption!: Phaser.GameObjects.Text;
@@ -120,11 +123,21 @@ export class BattleshipScene extends Phaser.Scene {
       keys.F.on('down', () => this.act());
     }
 
-    this.stop = watchBattleship(this.connection(), this.matchId, (view) => {
+    const connection = this.connection();
+    const matchId = this.matchId;
+    let waitingHost = false;
+    this.stop = watchBattleship(connection, matchId, (view) => {
       this.view = view;
+      waitingHost = view.match?.status === 'waiting' && view.seat === 'host';
       this.render();
     });
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stop?.());
+    const leave = cancelWhenLeft(() => waitingHost, () => cancelBattleship(connection, matchId));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.stop?.();
+      this.stopRematch?.();
+      this.stopRematch = null;
+      leave();
+    });
   }
 
   private connection(): Connection {
@@ -192,10 +205,14 @@ export class BattleshipScene extends Phaser.Scene {
     try {
       await action();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/denied|permission/i.test(message)) this.chrome.denied();
-      else this.chrome.notice(message.slice(0, 40));
+      this.report(error);
     }
+  }
+
+  private report(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/denied|permission/i.test(message)) this.chrome.denied();
+    else this.chrome.notice(message.slice(0, 40));
   }
 
   private render(): void {
@@ -303,10 +320,16 @@ export class BattleshipScene extends Phaser.Scene {
       const key = `${this.matchId}-${m.status}`;
       if (this.announced !== key) {
         this.announced = key;
-        this.chrome.gameOver(result, how, [
-          { label: 'New match', onPress: () => void this.attempt(async () => { const id = await createBattleship(connection); location.hash = `#/play/battleship/${id}`; }) },
-          { label: 'Arcade', onPress: () => (location.hash = '#/') },
-        ]);
+        const arcade = { label: 'Arcade', onPress: () => (location.hash = '#/') };
+        if (!seat) this.chrome.gameOver(result, how, [arcade]);
+        else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, how, {
+          game: COLLECTION,
+          matchId: this.matchId,
+          fresh: (uid) => ({ ...createdMatch(uid) }),
+          join: joinBattleship,
+          open: (id) => (location.hash = `#/play/battleship/${id}`),
+          onError: (error) => this.report(error),
+        }, [arcade]);
       }
     }
   }

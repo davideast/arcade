@@ -6,6 +6,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -61,6 +62,11 @@ export async function joinUno(connection: Connection, id: string): Promise<void>
   const m = await readMatch(connection, id);
   if (m.players.includes(uid(connection))) return;
   await applyOps(connection.db, joinOps(id, m, uid(connection)));
+}
+
+/** The host closes a table nobody has started. */
+export async function cancelUno(connection: Connection, id: string): Promise<void> {
+  await deleteDoc(doc(connection.db, COLLECTION, id));
 }
 
 /** The host starts the table: lock the seats, write the shuffled deck, deal. */

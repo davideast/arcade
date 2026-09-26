@@ -1,0 +1,32 @@
+rules_version = '2+modules';
+
+// Rematch rules. rematches/{game}/matches/{matchId} names the match that
+// follows the finished match `matchId` in the `game` collection:
+// { game, match, by }. A player of the finished match writes it in the batch
+// that creates the new match, which they host, so the named match is new and
+// real. Create-only: a finished match has at most one rematch.
+
+function isFinished(d) {
+  return d.status in ['won', 'draw', 'resigned'];
+}
+
+// Uno seats every player in `players`; the two-seat games use host and guest.
+function playedIn(game, d) {
+  return game == 'uno'
+    ? request.auth.uid in d.players
+    : (request.auth.uid == d.host || request.auth.uid == d.guest);
+}
+
+// `game` and `id` are the finished match's collection and id.
+export function rematchCreate(db, game, id) {
+  let next = request.resource.data.match;
+  return request.auth != null
+    && game in ['tictactoe', 'uno', 'pool', 'battleship', 'chess', 'checkers']
+    && request.resource.data.keys().hasOnly(['game', 'match', 'by'])
+    && request.resource.data.game == game
+    && request.resource.data.by == request.auth.uid
+    && isFinished(get(/databases/$(db)/documents/$(game)/$(id)).data)
+    && playedIn(game, get(/databases/$(db)/documents/$(game)/$(id)).data)
+    && !exists(/databases/$(db)/documents/$(game)/$(next))
+    && existsAfter(/databases/$(db)/documents/$(game)/$(next));
+}
