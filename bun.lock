@@ -29,10 +29,24 @@
         "@games/kit": "workspace:*",
         "@games/tictactoe": "workspace:*",
         "@games/turn-net": "workspace:*",
+        "@games/uno": "workspace:*",
       },
     },
     "games/tictactoe": {
       "name": "@games/tictactoe",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
+    "games/uno": {
+      "name": "@games/uno",
       "dependencies": {
         "@games/kit": "workspace:*",
         "@games/turn-net": "workspace:*",
@@ -225,6 +239,8 @@
     "@games/tictactoe": ["@games/tictactoe@workspace:games/tictactoe"],
 
     "@games/turn-net": ["@games/turn-net@workspace:packages/turn-net"],
+
+    "@games/uno": ["@games/uno@workspace:games/uno"],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.9.16", "", { "dependencies": { "@grpc/proto-loader": "^0.7.8", "@types/node": ">=12.12.47" } }, "sha512-wE4Ut/olIzfKqp631XrG+wbF0v1vWFN4YL9FyXC2LJiG33DsV7PLzURjrCvY/6je2ntdRkeLpPDluzSRGaVltQ=="],
 

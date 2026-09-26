@@ -1,0 +1,197 @@
+rules_version = '2+modules';
+
+// Uno: 2 to 4 players. The host shuffles and deals, so the host could know the
+// deck order; everything else is enforced here. Each card is its own document
+// (deck/{i}), readable only by the player who drew it (draws/{i}) until it is
+// played (played/{i}). A play must be a card the player holds, not played
+// before, matching the top card's color or value or wild; turn order,
+// direction, skips, draw penalties and hand counts follow from the card.
+
+import { signedIn } from './uno-shared';
+
+function unoMyTurn() {
+  return resource.data.players[resource.data.turn] == request.auth.uid;
+}
+
+// Seat reached from the current turn after `step` seats in `direction`.
+function unoSeat(turn, direction, step, size) {
+  return ((turn + direction * step) % size + size) % size;
+}
+
+// Every seat's count is unchanged except the player on turn's, which moves by `delta`.
+function unoCountsMoved(delta) {
+  let before = resource.data.counts;
+  let after = request.resource.data.counts;
+  let t = resource.data.turn;
+  return after.size() == before.size()
+    && after[t] == before[t] + delta
+    && (0 == t || after[0] == before[0])
+    && (1 == t || after[1] == before[1])
+    && (2 >= before.size() || 2 == t || after[2] == before[2])
+    && (3 >= before.size() || 3 == t || after[3] == before[3]);
+}
+
+export function unoCreate() {
+  return signedIn()
+    && request.resource.data.keys().hasOnly(['host', 'players', 'counts', 'status', 'turn', 'direction',
+         'color', 'value', 'pending', 'drawIndex', 'lastCard', 'lastAction', 'moveCount', 'winner', 'createdAt', 'size'])
+    && request.resource.data.host == request.auth.uid
+    && request.resource.data.players == [request.auth.uid]
+    && request.resource.data.counts == [0]
+    && request.resource.data.size == 1
+    && request.resource.data.status == 'waiting'
+    && request.resource.data.turn == 0
+    && request.resource.data.direction == 1
+    && request.resource.data.color == ''
+    && request.resource.data.value == ''
+    && request.resource.data.pending == 0
+    && request.resource.data.drawIndex == 0
+    && request.resource.data.lastCard == -1
+    && request.resource.data.lastAction == 'create'
+    && request.resource.data.moveCount == 0
+    && request.resource.data.winner == ''
+    && request.resource.data.createdAt == request.time;
+}
+
+export function unoJoin() {
+  return signedIn()
+    && resource.data.status == 'waiting'
+    && !(request.auth.uid in resource.data.players)
+    && resource.data.players.size() < 4
+    && request.resource.data.players == resource.data.players.concat([request.auth.uid])
+    && request.resource.data.counts == resource.data.counts.concat([0])
+    && request.resource.data.size == resource.data.size + 1
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'counts', 'size', 'lastAction']);
+}
+
+export function unoStart() {
+  return request.auth.uid == resource.data.host
+    && resource.data.status == 'waiting'
+    && resource.data.players.size() >= 2
+    && request.resource.data.status == 'dealing'
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastAction']);
+}
+
+// `topId` is the id of the opening card, players.size() * 7, as a string.
+export function unoDeal(db, id, topId) {
+  let k = resource.data.players.size() * 7;
+  let top = get(/databases/$(db)/documents/uno/$(id)/deck/$(topId)).data.card;
+  return request.auth.uid == resource.data.host
+    && resource.data.status == 'dealing'
+    && request.resource.data.status == 'playing'
+    && request.resource.data.drawIndex == k + 1
+    && request.resource.data.lastCard == k
+    && existsAfter(/databases/$(db)/documents/uno/$(id)/played/$(topId))
+    && request.resource.data.color == top[0:1]
+    && request.resource.data.value == top[1:2]
+    && request.resource.data.counts.size() == resource.data.players.size()
+    && request.resource.data.counts.toSet() == [7].toSet()
+    && request.resource.data.turn == 0
+    && request.resource.data.direction == 1
+    && request.resource.data.pending == 0
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'counts', 'turn', 'direction',
+         'color', 'value', 'pending', 'drawIndex', 'lastCard', 'lastAction']);
+}
+
+// `i` is the played card's id, request.resource.data.lastCard as a string.
+export function unoPlay(db, id, i) {
+  let card = get(/databases/$(db)/documents/uno/$(id)/deck/$(i)).data.card;
+  let v = card[1:2];
+  let wild = card[0:1] == 'x';
+  let size = resource.data.players.size();
+  let won = request.resource.data.counts[resource.data.turn] == 0;
+  return resource.data.status == 'playing'
+    && unoMyTurn()
+    && resource.data.pending == 0
+    && get(/databases/$(db)/documents/uno/$(id)/draws/$(i)).data.uid == request.auth.uid
+    && !exists(/databases/$(db)/documents/uno/$(id)/played/$(i))
+    && existsAfter(/databases/$(db)/documents/uno/$(id)/played/$(i))
+    && (wild || card[0:1] == resource.data.color || v == resource.data.value)
+    && request.resource.data.color == (wild ? request.resource.data.color : card[0:1])
+    && request.resource.data.color in ['r', 'o', 'p', 'g']
+    && request.resource.data.value == v
+    && request.resource.data.direction == (v == 'r' ? -resource.data.direction : resource.data.direction)
+    && request.resource.data.turn == (won ? resource.data.turn : unoSeat(resource.data.turn,
+         request.resource.data.direction, (v == 's' || (v == 'r' && size == 2)) ? 2 : 1, size))
+    && request.resource.data.pending == (v == 'd' ? 2 : (v == '+' ? 4 : 0))
+    && unoCountsMoved(-1)
+    && request.resource.data.moveCount == resource.data.moveCount + 1
+    && request.resource.data.status == (won ? 'won' : 'playing')
+    && request.resource.data.winner == (won ? request.auth.uid : '')
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts', 'direction', 'turn', 'color',
+         'value', 'pending', 'lastCard', 'lastAction', 'moveCount', 'status', 'winner']);
+}
+
+export function unoDraw() {
+  let k = resource.data.pending > 0 ? resource.data.pending : 1;
+  let available = resource.data.drawIndex + k <= 108 ? k : 108 - resource.data.drawIndex;
+  return resource.data.status == 'playing'
+    && unoMyTurn()
+    && request.resource.data.lastAction == (available > 0 ? 'draw' : 'pass')
+    && request.resource.data.drawIndex == resource.data.drawIndex + available
+    && unoCountsMoved(available)
+    && request.resource.data.pending == 0
+    && request.resource.data.turn == unoSeat(resource.data.turn, resource.data.direction, 1, resource.data.players.size())
+    && request.resource.data.moveCount == resource.data.moveCount + 1
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['counts', 'pending', 'drawIndex', 'turn',
+         'lastAction', 'moveCount']);
+}
+
+export function unoCancel() {
+  return request.auth.uid == resource.data.host && resource.data.status == 'waiting';
+}
+
+// deck/{i}: the host writes the shuffled deck while dealing; a card is readable
+// by the player who drew it, and by everyone once played. `n` is the id as an int.
+export function unoDeckCreate(db, id, n) {
+  return unoDeckCreateFor(get(/databases/$(db)/documents/uno/$(id)).data, n);
+}
+
+function unoDeckCreateFor(m, n) {
+  return request.auth.uid == m.host
+    && m.status == 'dealing'
+    && n >= 0 && n < 108
+    && request.resource.data.keys().hasOnly(['card']);
+}
+
+export function unoDeckRead(db, id, i) {
+  return exists(/databases/$(db)/documents/uno/$(id)/played/$(i))
+    || get(/databases/$(db)/documents/uno/$(id)/draws/$(i)).data.uid == request.auth.uid;
+}
+
+// draws/{i}: written by the host for the opening hands, or by the player on
+// turn for the cards their draw takes, within the range the draw moved.
+export function unoDrawsCreate(db, id, n) {
+  return unoDrawsCreateFor(get(/databases/$(db)/documents/uno/$(id)).data,
+    getAfter(/databases/$(db)/documents/uno/$(id)).data, n);
+}
+
+function unoDrawsCreateFor(before, after, n) {
+  return request.resource.data.keys().hasOnly(['uid'])
+    && ((request.auth.uid == before.host
+          && before.status == 'dealing' && after.status == 'playing'
+          && n < before.size * 7
+          && request.resource.data.uid == before.players[n % before.size])
+      || (after.lastAction == 'draw'
+          && before.players[before.turn] == request.auth.uid
+          && request.resource.data.uid == request.auth.uid
+          && n >= before.drawIndex && n < after.drawIndex));
+}
+
+// played/{i}: the opening card at the deal, or the card the player on turn plays.
+export function unoPlayedCreate(db, id, n) {
+  return unoPlayedCreateFor(get(/databases/$(db)/documents/uno/$(id)).data,
+    getAfter(/databases/$(db)/documents/uno/$(id)).data, n);
+}
+
+function unoPlayedCreateFor(before, after, n) {
+  return request.resource.data.keys().hasOnly(['by'])
+    && request.resource.data.by == request.auth.uid
+    && ((request.auth.uid == before.host
+          && before.status == 'dealing' && after.status == 'playing'
+          && n == before.size * 7)
+      || (after.lastAction == 'play'
+          && after.lastCard == n
+          && before.players[before.turn] == request.auth.uid
+          && after.moveCount == before.moveCount + 1));
+}

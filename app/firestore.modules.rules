@@ -8,6 +8,10 @@ import {
   ticTacToeCreate, ticTacToeJoin, ticTacToeCancel,
   ticTacToeMove, ticTacToeWin, ticTacToeDraw, ticTacToeResign
 } from '../games/tictactoe/tictactoe';
+import {
+  unoCreate, unoJoin, unoStart, unoDeal, unoPlay, unoDraw, unoCancel,
+  unoDeckCreate, unoDeckRead, unoDrawsCreate, unoPlayedCreate
+} from '../games/uno/uno';
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -21,6 +25,29 @@ service cloud.firestore {
       allow update: if request.resource.data.winner == 'guest' && request.resource.data.status == 'won' && (ticTacToeWin('guest'));
       allow update: if request.resource.data.status == 'draw' && (ticTacToeDraw());
       allow update: if request.resource.data.status == 'resigned' && (ticTacToeResign());
+    }
+    match /uno/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if unoCreate();
+      allow delete: if unoCancel();
+      allow update: if request.resource.data.lastAction == 'join' && (unoJoin());
+      allow update: if request.resource.data.lastAction == 'start' && (unoStart());
+      allow update: if request.resource.data.lastAction == 'deal' && (unoDeal(database, matchId, string(resource.data.players.size() * 7)));
+      allow update: if request.resource.data.lastAction == 'play' && (unoPlay(database, matchId, string(request.resource.data.lastCard)));
+      allow update: if request.resource.data.lastAction in ['draw', 'pass'] && (unoDraw());
+
+      match /deck/{i} {
+        allow get: if request.auth != null && unoDeckRead(database, matchId, i);
+        allow create: if unoDeckCreate(database, matchId, int(i));
+      }
+      match /draws/{i} {
+        allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+        allow create: if request.auth != null && unoDrawsCreate(database, matchId, int(i));
+      }
+      match /played/{i} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && unoPlayedCreate(database, matchId, int(i));
+      }
     }
   }
 }

@@ -1,0 +1,8 @@
+rules_version = '2+modules';
+
+import { isAuthenticated } from 'auth';
+
+// A nested module, to exercise imports inside a module that is itself imported.
+export function signedIn() {
+  return isAuthenticated();
+}

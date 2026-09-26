@@ -41,7 +41,7 @@ export function matchChrome(
 
   panel(scene, SIDE.x, SIDE.y, SIDE.width, SIDE.height, 'purple', 'ink');
   const status = text(scene, SIDE.x + 6, SIDE.y + 6, '', { color: 'sand', wrap: SIDE.width - 12 });
-  text(scene, SIDE.x + 6, SIDE.y + 34, 'PLAYERS', { color: 'lavender' });
+  text(scene, SIDE.x + 6, SIDE.y + 46, 'PLAYERS', { color: 'lavender' });
   let playerObjects: Phaser.GameObjects.GameObject[] = [];
   let actionButtons: Button[] = [];
   const focus = new FocusGroup(scene, [back]);
@@ -55,7 +55,7 @@ export function matchChrome(
       for (const o of playerObjects) o.destroy();
       playerObjects = [];
       players.forEach((p, i) => {
-        const y = SIDE.y + 46 + i * 12;
+        const y = SIDE.y + 58 + i * 12;
         if (p.active) {
           playerObjects.push(scene.add.rectangle(SIDE.x + 3, y - 2, SIDE.width - 6, 11, PALETTE.maroon).setOrigin(0, 0));
         }

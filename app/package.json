@@ -10,6 +10,7 @@
   "dependencies": {
     "@games/kit": "workspace:*",
     "@games/tictactoe": "workspace:*",
-    "@games/turn-net": "workspace:*"
+    "@games/turn-net": "workspace:*",
+    "@games/uno": "workspace:*"
   }
 }

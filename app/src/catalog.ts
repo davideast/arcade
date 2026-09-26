@@ -7,6 +7,7 @@
 import type * as Phaser from 'phaser';
 import { createMatch, joinMatch, type Connection } from '@games/turn-net';
 import { TicTacToeScene, ticTacToe } from '@games/tictactoe';
+import { UnoScene, createUno, joinUno } from '@games/uno';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
@@ -41,7 +42,17 @@ export const GAMES: ArcadeGame[] = [
     create: (c) => createMatch(c, ticTacToe),
     join: (c, id) => joinMatch(c, ticTacToe, id),
   },
-  { id: 'uno', title: 'Uno', sheetKey: 'sheet-uno', sheetUrl: unoSheet, players: '2-4', seats: twoSeats },
+  {
+    id: 'uno',
+    title: 'Uno',
+    sheetKey: 'sheet-uno',
+    sheetUrl: unoSheet,
+    players: '2-4',
+    scene: UnoScene,
+    seats: (data) => ({ filled: (data.players as string[] | undefined)?.length ?? 1, total: 4 }),
+    create: (c) => createUno(c),
+    join: (c, id) => joinUno(c, id),
+  },
   { id: 'pool', title: 'Pool', sheetKey: 'sheet-pool', sheetUrl: poolSheet, players: '2', seats: twoSeats },
   { id: 'battleship', title: 'Battleship', sheetKey: 'sheet-battleship', sheetUrl: battleshipSheet, players: '2', seats: twoSeats },
   { id: 'chess', title: 'Chess', sheetKey: 'sheet-chess', sheetUrl: chessSheet, players: '2', seats: twoSeats },
