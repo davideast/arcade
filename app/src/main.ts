@@ -4,10 +4,11 @@ import { createPixelGame, css } from '@games/kit';
 import { connect, signIn } from '@games/turn-net';
 import { ArcadeScene } from './arcade-scene.ts';
 import { BootScene } from './boot-scene.ts';
+import { connectOptions, firebaseOptions } from './firebase-config.ts';
 import { GAMES } from './catalog.ts';
 import { parseRoute, showRoute } from './router.ts';
 
-const connection = connect({ apiKey: 'demo', projectId: 'demo-pyric-games', appId: 'demo' });
+const connection = connect(firebaseOptions, connectOptions);
 const user = await signIn(connection.auth);
 
 const scenes: Phaser.Types.Scenes.SceneType[] = [

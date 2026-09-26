@@ -39,9 +39,18 @@ export interface Connection {
   auth: Auth;
 }
 
-export function connect(options: FirebaseOptions): Connection {
+export interface ConnectOptions {
+  /** A named Firestore database; the project's default database when absent. */
+  database?: string;
+  /** An Identity Platform tenant that signs this app's players in. */
+  tenantId?: string;
+}
+
+export function connect(options: FirebaseOptions, { database, tenantId }: ConnectOptions = {}): Connection {
   const app = initializeApp(options);
-  return { db: getFirestore(app), auth: getAuth(app) };
+  const auth = getAuth(app);
+  if (tenantId) auth.tenantId = tenantId;
+  return { db: database ? getFirestore(app, database) : getFirestore(app), auth };
 }
 
 /**
