@@ -1,6 +1,30 @@
 # Game rule patterns
 
-Each pattern names the checks a rule needs. Look up exact stdlib signatures with `firestore_rules_stdlib_get` before using them.
+Each pattern names the checks a rule needs. Look up exact stdlib signatures with `rules_stdlib_get` before using them.
+
+## One module per game, one main file
+
+```rules
+// games/chess/chess.rules
+rules_version = '2+modules';
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { isMyTurn, turnFlipped } from 'turns';
+export function chessMove() { ... }
+
+// firestore.modules.rules
+rules_version = '2+modules';
+import { chessCreate, chessJoin, chessCancel, chessMove, chessResign } from '../games/chess/chess';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /chess/{matchId} {
+      allow update: if resource.data.status == 'playing' && (chessMove());
+      ...
+    }
+  }
+}
+```
+
+Relative imports resolve from the importing module's directory, and a module may import the stdlib or other modules. Keep `match` blocks, path variables, and any `string()`/`int()` conversions in the main file, and pass plain values into module functions (see [limits.md](limits.md)).
 
 ## Lobby: create, join, cancel
 
@@ -34,7 +58,7 @@ function moveBasics() {
 
 ## Placement: one empty cell, the mover's mark, nothing else
 
-This is the shape `build_game_rules` emits for a `board` map. The client writes the filled cell's key to `lastMove`.
+For a `board` map, the client writes the filled cell's key to `lastMove`.
 
 ```rules
 function placedOneCell() {
@@ -55,9 +79,11 @@ function placedOneCell() {
 
 Map keys can be any string expression. Production accepts a stored field value, a function parameter, a `let` binding, a value read from a `get()` result, and a concatenated name such as `b['c' + string(col) + 'r' + string(row)]`. Nested map diffs are exact: a two-cell change fails `hasOnly([lastMove])`.
 
+Inside a `2+modules` module, Pyric's resolver currently rejects the `let before = resource.data; after.board.diff(...)` form (a method on a `let`-bound document) and `string()`. In a module, write `request.resource.data.board.diff(resource.data.board)` in full and do conversions in the main file; see [limits.md](limits.md).
+
 ## Gravity
 
-`build_game_rules` has the client also write `lastBelow`, the key of the cell beneath `lastMove` (`''` on the bottom row). One `matches()` over the real pairs pins it, and the cell beneath must be occupied:
+Have the client also write `lastBelow`, the key of the cell beneath `lastMove` (`''` on the bottom row). One `matches()` over the real pairs pins it, and the cell beneath must be occupied:
 
 ```rules
 && (after.lastMove + ':' + after.lastBelow).matches('c0r0:|c0r1:c0r0|c0r2:c0r1|...')
@@ -93,7 +119,7 @@ allow update: if request.resource.data.status == 'draw' && (
 
 ## Win lines: generate them
 
-A win check is an OR of every line, each an AND of cells: 8 lines for tic-tac-toe, 69 for Connect Four. Generate them; hand-written lists miss lines. In the playground, `build_game_rules` does this. On boards larger than about 7x7, split the check into four functions by direction (rows, columns, two diagonals) to keep each boolean chain under the compiler's depth limit, and OR them in the win rule.
+A win check is an OR of every line, each an AND of cells: 8 lines for tic-tac-toe, 69 for Connect Four. Generate them with a script from the board size; hand-written lists miss lines. On boards larger than about 7x7, split the check into four functions by direction (rows, columns, two diagonals) to keep each boolean chain under the compiler's depth limit, and OR them in the win rule.
 
 ## Movement games: config document, counters, move types
 
@@ -111,6 +137,44 @@ function config() { return get(/databases/$(database)/documents/gameConfig/check
 - Win by counters, not board scans: `hostCount`, `guestCount`. A capture decrements the opponent's count by exactly one (`incrementedBy('guestCount', -1)` from `counters`); other moves leave both unchanged.
 - Gate each move type with a stored label (`moveType == 'capture'`) as the first comparison of its rule.
 - Every move rule still needs a changed-fields check listing the from cell, the to cell, any captured cell, and the metadata fields. Checking only that the moved piece arrived lets a player change other squares in the same write.
+
+## Movement games without a config document: bounded geometry and replay
+
+When legal geometry is too large to keep as data, split it:
+
+- **Enforce what one step or hop needs.** For a single diagonal step or jump, look up file and rank with map literals (`{'a': 1, 'b': 2, ...}[sq[0:1]]`), then check the distances and that the captured square is the midpoint: `file(captured) * 2 == file(from) + file(to)`.
+- **Constrain the extra squares a special move names.** Castling may change exactly its rook's two squares (`extra == ['f1', 'h1']` for the king moving e1 to g1); en passant exactly the passed pawn's square, and only when the move lands on the stored `enPassant` square. Without that, a pawn move can delete any piece by naming it as extra.
+- **Replay the rest.** Multi-hop paths, check, mandatory captures and win claims are checked by every client's replay of the move from the stored previous position (see the skill's "Detect what rules can't prevent").
+
+## Multi-document moves: a batch whose rules check each other
+
+A move that creates documents (a card played, a shot fired) writes them and the match update in one batch. Each side's rule checks the other through `getAfter()`, `exists()` and `existsAfter()`:
+
+```rules
+// The match update names a shot document that is new in this batch.
+&& !exists(/databases/$(db)/documents/battleship/$(id)/shots/$(request.resource.data.lastShot))
+&& existsAfter(/databases/$(db)/documents/battleship/$(id)/shots/$(request.resource.data.lastShot))
+
+// The shot document's rule checks the match after the batch names it.
+&& getAfter(/databases/$(db)/documents/battleship/$(id)).data.lastShot == shotId
+&& getAfter(/databases/$(db)/documents/battleship/$(id)).data.moveCount == before.moveCount + 1
+```
+
+- Make the subdocuments create-only. A repeated id then fails as an update, which blocks firing at a cell twice or replaying a played card without extra checks.
+- Name subdocument ids after what they record (`h07` for the host's shot at cell 7) and check the prefix, so one player can't take the other's id.
+- Checks on both sides guard each other, so removal probes find some of them redundant. Keep them; record which.
+
+## Hidden information the rules still referee
+
+Rules read any document with `get()`, whatever its read rules say:
+
+- **Private placement:** keep each fleet in a create-only document only its owner can read until the match ends. The shot rule reads the defender's fleet with `get()` and requires `request.resource.data.hit == (cell in fleet.cells)`, so the attacker never sees the fleet and still can't lie about hits.
+- **Private hands:** store the deck as one document per card, readable only by the player a `draws/{i}` document names, until a `played/{i}` document makes it public. The play rule checks that the mover drew the card, with `get()` on the draws document.
+- The dealer's shuffle is trusted: rules have no random source. Commit-reveal between players removes that trust if the game needs it.
+
+## Rematch
+
+On the game-over screen, the presser creates the new match and a create-only `rematches/{game}/matches/{finishedMatchId}` document naming it, in one batch. Its rule requires a participant of the finished match, a finished status, and a new match that did not exist before the batch and does after (`!exists` and `existsAfter`). The other players read it and join through the normal join rule. Key it by game and match id; match ids alone can collide across collections.
 
 ## Ending a game early
 
