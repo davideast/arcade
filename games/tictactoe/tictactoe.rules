@@ -37,15 +37,18 @@ function moveBasics() {
 }
 
 function placedOneCell() {
-  return resource.data.board[request.resource.data.lastMove] == ''
-    && request.resource.data.board[request.resource.data.lastMove] == resource.data.currentTurn
-    && request.resource.data.board.diff(resource.data.board).affectedKeys()
-         .hasOnly([request.resource.data.lastMove])
+  let before = resource.data.board;
+  let after = request.resource.data.board;
+  let cell = request.resource.data.lastMove;
+  return before[cell] == ''
+    && after[cell] == resource.data.currentTurn
+    && after.diff(before).affectedKeys().hasOnly([cell])
     && request.resource.data.diff(resource.data).affectedKeys()
          .hasOnly(['board', 'lastMove', 'currentTurn', 'moveCount', 'status', 'winner']);
 }
 
 export function ticTacToeCreate() {
+  let board = request.resource.data.board;
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status',
          'winner', 'moveCount', 'board', 'lastMove', 'createdAt'])
@@ -54,9 +57,9 @@ export function ticTacToeCreate() {
     && request.resource.data.moveCount == 0
     && request.resource.data.lastMove == ''
     && request.resource.data.createdAt == request.time
-    && request.resource.data.board.keys().hasOnly(cellNames())
-    && request.resource.data.board.size() == 9
-    && request.resource.data.board.values().hasOnly(['']);
+    && board.keys().hasOnly(cellNames())
+    && board.size() == 9
+    && board.values().hasOnly(['']);
 }
 
 export function ticTacToeJoin() {

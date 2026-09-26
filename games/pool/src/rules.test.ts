@@ -234,6 +234,16 @@ async function endGame(seed: number): Promise<string[]> {
     if (allowed) await env.expectAllowed(label, dbFor[seat], env.update(data));
     else await env.expectDenied(label, dbFor[seat], env.update(data));
   }
+  // Pocketing the last solid with the 8 ends the game and passes the turn, though a solid alone would keep it.
+  const last = seedPosition('host', SOLIDS.slice(1));
+  const both = last.balls.slice();
+  for (const n of [SOLIDS[0], 8]) {
+    both[n * 2] = OFF_TABLE;
+    both[n * 2 + 1] = OFF_TABLE;
+  }
+  const lastAndEight = { ...shotUpdate(last, { dx: 1000, dy: 0, power: 50 }, { balls: both, scratch: false, newlyPotted: [SOLIDS[0], 8] }), winner: 'guest' } as Data;
+  await env.expectDenied('host pockets the last solid with the 8 and keeps the turn', env.host, env.update({ ...lastAndEight, currentTurn: 'host' }));
+  await env.expectAllowed('host pockets the last solid with the 8 and loses', env.host, env.update(lastAndEight));
   const doc = seedPosition('host', SOLIDS);
   const quiet = shotUpdate(doc, { dx: 1000, dy: 0, power: 50 }, { balls: doc.balls, scratch: false, newlyPotted: [] });
   await env.expectDenied('host clears solids and claims the win without the 8', env.host, env.update({ ...quiet, status: 'won', winner: 'host' }));

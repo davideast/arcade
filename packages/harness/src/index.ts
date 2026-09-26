@@ -167,6 +167,22 @@ function prefilled(created: MatchDoc): Partial<MatchDoc> {
   return { board: { ...board, [first]: 'host' } };
 }
 
+/** The created document's board with one of its cells removed. */
+function missingCell(created: MatchDoc): Partial<MatchDoc> {
+  const board = created.board as Record<string, string> | undefined;
+  if (!board) return {};
+  const { [Object.keys(board).at(-1)!]: _dropped, ...rest } = board;
+  return { board: rest };
+}
+
+/** The created document's board with one cell renamed to a name off the grid. */
+function offGridCell(created: MatchDoc): Partial<MatchDoc> {
+  const board = created.board as Record<string, string> | undefined;
+  if (!board) return {};
+  const { [Object.keys(board).at(-1)!]: _dropped, ...rest } = board;
+  return { board: { ...rest, offGrid: '' } };
+}
+
 /** Build every case for seeded random games of `def`. */
 export function buildCases<S, M>(def: GameDefinition<S, M>, options: HarnessOptions): FirestoreCase[] {
   const random = mulberry32(options.seed);
@@ -201,6 +217,26 @@ export function buildCases<S, M>(def: GameDefinition<S, M>, options: HarnessOpti
       data: { ...created, ...prefilled(created), createdAt: serverTimestamp() },
       requestTime: NOW,
     },
+    ...(created.board ? [
+      {
+        description: 'create: a match with a board missing a cell',
+        expectation: 'DENY' as const,
+        method: 'create' as const,
+        path: 'match/m1',
+        auth: HOST,
+        data: { ...created, ...missingCell(created), createdAt: serverTimestamp() },
+        requestTime: NOW,
+      },
+      {
+        description: 'create: a match with a board cell off the grid',
+        expectation: 'DENY' as const,
+        method: 'create' as const,
+        path: 'match/m1',
+        auth: HOST,
+        data: { ...created, ...offGridCell(created), createdAt: serverTimestamp() },
+        requestTime: NOW,
+      },
+    ] : []),
     {
       description: 'create: a match with an extra field',
       expectation: 'DENY',

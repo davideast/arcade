@@ -53,9 +53,10 @@ function poolNewly() {
 function poolGroupAssigned() {
   let seat = resource.data.currentTurn;
   let scratch = request.resource.data.scratch;
-  let claimed = poolNewly().size() > 0 && poolNewly().hasOnly(poolSolids())
+  let newly = poolNewly();
+  let claimed = newly.size() > 0 && newly.hasOnly(poolSolids())
     ? 'solids'
-    : (poolNewly().size() > 0 && poolNewly().hasOnly(poolStripes()) ? 'stripes' : '');
+    : (newly.size() > 0 && newly.hasOnly(poolStripes()) ? 'stripes' : '');
   return request.resource.data.hostGroup == (resource.data.hostGroup != ''
     ? resource.data.hostGroup
     : (scratch || claimed == '' ? '' : poolGroupOf(seat, claimed)));
@@ -66,13 +67,15 @@ function poolGroupAssigned() {
 function poolTurnPassed() {
   let seat = resource.data.currentTurn;
   let mine = poolGroupOf(seat, request.resource.data.hostGroup);
+  let newly = poolNewly();
   let keep = request.resource.data.scratch == false
-    && !poolNewly().hasAny([8])
-    && poolNewly().hasAny(poolGroupBalls(mine));
+    && !newly.hasAny([8])
+    && newly.hasAny(poolGroupBalls(mine));
   return request.resource.data.currentTurn == (keep ? seat : poolOther(seat));
 }
 
 function poolShotBasics() {
+  let shot = request.resource.data.shot;
   return request.auth != null && isPlaying() && isMyTurn() && moveIncremented()
     && request.resource.data.prevBalls == resource.data.balls
     && request.resource.data.prevPotted == resource.data.potted
@@ -82,14 +85,12 @@ function poolShotBasics() {
     && request.resource.data.balls is list
     && request.resource.data.balls.size() == 32
     && request.resource.data.scratch is bool
-    && request.resource.data.shot.keys().hasOnly(['dx', 'dy', 'power'])
-    && request.resource.data.shot.dx is int
-    && request.resource.data.shot.dy is int
-    && request.resource.data.shot.power is int
-    && request.resource.data.shot.power >= 1 && request.resource.data.shot.power <= 100
-    && request.resource.data.shot.dx >= -1000 && request.resource.data.shot.dx <= 1000
-    && request.resource.data.shot.dy >= -1000 && request.resource.data.shot.dy <= 1000
-    && (request.resource.data.shot.dx != 0 || request.resource.data.shot.dy != 0)
+    && shot.keys().hasOnly(['dx', 'dy', 'power'])
+    && shot.dx is int && shot.dy is int && shot.power is int
+    && shot.power >= 1 && shot.power <= 100
+    && shot.dx >= -1000 && shot.dx <= 1000
+    && shot.dy >= -1000 && shot.dy <= 1000
+    && (shot.dx != 0 || shot.dy != 0)
     && poolGroupAssigned()
     && poolTurnPassed()
     && onlyFieldsChanged(['balls', 'potted', 'prevBalls', 'prevPotted', 'shot', 'scratch', 'hostGroup',
