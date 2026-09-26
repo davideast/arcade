@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun run --cwd app dev",
     "rules:resolve": "bun run --cwd app rules:resolve",
+    "lint": "bun run rules:resolve && bun tools/lint-rules.ts",
     "test": "bun run rules:resolve && bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

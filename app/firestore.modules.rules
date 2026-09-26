@@ -106,5 +106,8 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if rematchCreate(database, game, matchId);
     }
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
