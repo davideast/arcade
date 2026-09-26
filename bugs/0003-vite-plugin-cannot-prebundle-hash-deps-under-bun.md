@@ -5,7 +5,8 @@ severity: blocker
 package: "@pyric/cli"
 pyric_commit: 92d52b02
 found_in: foundation (first vite dev run)
-status: open
+status: fixed
+fixed_in: 87a5303e (#770, b4debe01)
 ---
 ## Summary
 
@@ -49,3 +50,9 @@ Use Vite's nested-dependency form so the lookup starts from the package that dep
 ## Workaround in pyric-games
 
 The root `package.json` lists `js-md5` and `js-sha256` under `optionalDependencies`, so they are linked at the workspace root, where Vite finds them.
+
+## Fixed
+
+Fixed by Pyric PR #770, merged as b4debe01, and verified on Pyric main 87a5303e (vendored as local-4). `bash bugs/repro/0003.sh` exits 0: the rules hashing functions no longer depend on js-md5 or js-sha256, so there is nothing to pre-bundle.
+
+Dropped in f6c7064: the root `optionalDependencies` for js-md5 and js-sha256 are removed.

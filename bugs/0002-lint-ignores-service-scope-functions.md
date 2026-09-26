@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 92d52b02
 found_in: tic-tac-toe rules lint
-status: open
+status: fixed
+fixed_in: 87a5303e (#772, c3ffb327)
 ---
 ## Summary
 
@@ -45,3 +46,9 @@ Collect `[...(ast.functions ?? []), ...(ast.service.functions ?? []), ...collect
 ## Workaround in pyric-games
 
 None. Lint output on resolved rules is ignored; the rules harness and removal probes are the checks.
+
+## Fixed
+
+Fixed by Pyric PR #772, merged as c3ffb327, and verified on Pyric main 87a5303e (vendored as local-4). `bun bugs/repro/0002.ts` reports `functionCount 1 maxEstimatedExpressions 5` at service scope, the same as in a match block.
+
+Replaced in 078ae4f: `bun run lint` resolves the rules and lints them. It reports no errors; the EXPRESSION_BUDGET warnings are static estimates, the largest ~448 of the 1,000 expressions production evaluates per request.

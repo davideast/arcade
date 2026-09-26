@@ -1,6 +1,8 @@
 // Repro 0007: every rules-evaluated write re-parses the whole ruleset, so the cost
 // of one write grows with the ruleset's size. Exit 1 when a write with the arcade
-// ruleset costs more than 5x a write with a one-rule ruleset.
+// ruleset costs more than a fifth of parsing it, which it does while every write
+// parses. A write still costs more than with a one-rule ruleset, because the
+// arcade's rules do more work.
 //   bun bugs/repro/0007.ts
 import { initializeSandbox } from 'pyric/sandbox';
 import { getFirestore } from 'pyric-admin/firestore';
@@ -28,4 +30,4 @@ const parse = (performance.now() - t) / 10;
 console.log(`one-rule ruleset: ${small.toFixed(1)} ms per write`);
 console.log(`arcade ruleset (${big.length} bytes): ${large.toFixed(1)} ms per write`);
 console.log(`parsing the arcade ruleset once: ${parse.toFixed(1)} ms`);
-process.exit(large > small * 5 ? 1 : 0);
+process.exit(large * 5 > parse ? 1 : 0);

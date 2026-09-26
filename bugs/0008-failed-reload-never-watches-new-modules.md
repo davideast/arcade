@@ -5,7 +5,8 @@ severity: major
 package: "@pyric/cli"
 pyric_commit: 92d52b02
 found_in: uno (adding uno.rules to the arcade's modular ruleset under vite dev)
-status: open
+status: fixed
+fixed_in: 87a5303e (#775, ed5a74ae)
 ---
 ## Summary
 
@@ -47,3 +48,9 @@ On a rejected reload, still watch every relative module the failed source names:
 ## Workaround in pyric-games
 
 After fixing a module that broke a reload, save `app/firestore.modules.rules` (or `touch` it).
+
+## Fixed
+
+Fixed by Pyric PR #775, merged as ed5a74ae, and verified on Pyric main 87a5303e (vendored as local-4). `bash bugs/repro/0008.sh`: fixing the broken module reloads the rules twice (the missing-module failure clears, then the fix loads) before the main file is touched.
+
+Nothing to drop in code. Saving the main rules file to force a reload is no longer needed; the skill no longer mentions it.

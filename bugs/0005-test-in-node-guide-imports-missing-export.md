@@ -5,7 +5,8 @@ severity: minor
 package: site-docs
 pyric_commit: 92d52b02
 found_in: foundation (writing repro 0004)
-status: open
+status: fixed
+fixed_in: 87a5303e (#774, 87a5303e)
 ---
 ## Summary
 
@@ -42,3 +43,9 @@ Change the guide's import to `import { getFirestore } from 'pyric-admin/firestor
 ## Workaround in pyric-games
 
 Repro scripts import from `pyric-admin/firestore`.
+
+## Fixed
+
+Fixed by Pyric PR #774, merged as 87a5303e, and verified on Pyric main 87a5303e (vendored as local-4). The guide now imports `getFirestore` from `pyric-admin/firestore`, and a docs test in Pyric checks every guide import against the package exports. `bun bugs/repro/0005.ts` still prints `missing` for the root import: it checks the export, which was never the defect.
+
+Nothing to drop: the repro scripts already import from `pyric-admin/firestore`.

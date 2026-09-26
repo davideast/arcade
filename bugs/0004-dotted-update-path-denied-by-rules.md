@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 92d52b02
 found_in: tic-tac-toe browser check (forged writes)
-status: open
+status: fixed
+fixed_in: 87a5303e (#773, d62f1b30)
 ---
 ## Summary
 
@@ -51,3 +52,9 @@ Build `request.resource.data` for every update with `applyUpdate(existing, incom
 ## Workaround in pyric-games
 
 `packages/turn-net` writes whole-map updates (`tx.update(ref, nextDocument)`), never dotted paths.
+
+## Fixed
+
+Fixed by Pyric PR #773, merged as d62f1b30, and verified on Pyric main 87a5303e (vendored as local-4). `bun bugs/repro/0004.ts` exits 0: the dotted update is allowed and stores the same document as the whole-map update.
+
+Kept by choice: `packages/turn-net` still writes whole documents, which is what each game computes. Dotted paths now work if a game wants them.

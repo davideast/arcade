@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 92d52b02
 found_in: uno rules
-status: open
+status: fixed
+fixed_in: 87a5303e (#771, 034a7627)
 ---
 ## Summary
 
@@ -42,3 +43,9 @@ Add the global functions production supports (at least `string`, `int`, `float`,
 ## Workaround in pyric-games
 
 `app/firestore.modules.rules` converts in the allow expressions and passes the results into the Uno module functions: `unoPlay(database, matchId, string(request.resource.data.lastCard))`, `unoDeckCreate(database, matchId, int(i))`.
+
+## Fixed
+
+Fixed by Pyric PR #771, merged as 034a7627, and verified on Pyric main 87a5303e (vendored as local-4). `bun bugs/repro/0006.ts` exits 0: `string()` and `int()` resolve inside a module.
+
+Dropped in e838d10: the main rules file passes raw path segments, and each game module converts them. Checkers reads a rank with `int()` in place of a map lookup.

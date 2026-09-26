@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 92d52b02
 found_in: uno rules test (3 and 4 player games timed out)
-status: open
+status: fixed
+fixed_in: 87a5303e (#769, e215e92f)
 ---
 ## Summary
 
@@ -46,3 +47,9 @@ Let `simulate` accept a parsed ruleset (or memoize `parseToAST` by source string
 ## Workaround in pyric-games
 
 The Uno rules test runs one game each for three and four players, with a longer timeout.
+
+## Fixed
+
+Fixed by Pyric PR #769, merged as e215e92f, and verified on Pyric main 87a5303e (vendored as local-4). `bun bugs/repro/0007.ts` exits 0: a write under the arcade ruleset (63,527 bytes) costs 3.5 ms, down from about 152 ms, against about 161 ms to parse the ruleset once. The repro used to compare against a one-rule ruleset, which still fails because the arcade's rules do more work per write; it now checks that a write costs well under one parse. Per-write cost no longer grows with ruleset size: padding a one-rule ruleset with 800 unused functions (72 KB) leaves a write at 0.07 ms.
+
+Dropped in 3e39e4c: Uno plays three games at every player count, the per-game short probe modes are gone, and all six rules tests run in about 15 seconds.
