@@ -27,9 +27,23 @@
       "name": "@games/app",
       "dependencies": {
         "@games/kit": "workspace:*",
+        "@games/pool": "workspace:*",
         "@games/tictactoe": "workspace:*",
         "@games/turn-net": "workspace:*",
         "@games/uno": "workspace:*",
+      },
+    },
+    "games/pool": {
+      "name": "@games/pool",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
       },
     },
     "games/tictactoe": {
@@ -235,6 +249,8 @@
     "@games/harness": ["@games/harness@workspace:packages/harness"],
 
     "@games/kit": ["@games/kit@workspace:packages/kit"],
+
+    "@games/pool": ["@games/pool@workspace:games/pool"],
 
     "@games/tictactoe": ["@games/tictactoe@workspace:games/tictactoe"],
 

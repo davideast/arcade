@@ -18,6 +18,8 @@ const cases: Record<string, string> = {
   'get(...).data.players.size()': 'export function check(db) { return get(/databases/$(db)/documents/games/g).data.players.size() > 0; }',
   'getAfter(...).data.players.size()': 'export function check(db) { return getAfter(/databases/$(db)/documents/games/g).data.players.size() > 0; }',
   'parameter bound to get(...).data': 'export function check(db) { return count(get(/databases/$(db)/documents/games/g).data); }\nfunction count(m) { return m.players.size() > 0; }',
+  'parameter bound to request.resource.data.shot, shot.keys()':
+    "export function check(db) { return valid(request.resource.data.shot); }\nfunction valid(shot) { return shot.keys().hasOnly(['dx', 'dy']); }",
 };
 let failed = false;
 for (const [name, body] of Object.entries(cases)) {

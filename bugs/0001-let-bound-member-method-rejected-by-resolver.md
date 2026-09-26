@@ -4,7 +4,7 @@ title: In a rules module, a method call on a field of a get() or getAfter() docu
 severity: blocker
 package: pyric
 pyric_commit: 92d52b02
-found_in: tic-tac-toe rules, then uno rules
+found_in: tic-tac-toe rules, then uno and pool rules
 status: open
 ---
 ## Summary
@@ -29,7 +29,10 @@ let doc = request.resource.data; doc.board.keys(): Function 'check' requires uns
 get(...).data.players.size(): Function 'check' requires unsupported method '.size()' has an unresolved projected receiver for service 'cloud.firestore'
 getAfter(...).data.players.size(): Function 'check' requires unsupported method '.size()' has an unresolved projected receiver for service 'cloud.firestore'
 parameter bound to get(...).data: Function 'm__count' requires unsupported method '.size()' has an unresolved projected receiver for service 'cloud.firestore'
+parameter bound to request.resource.data.shot, shot.keys(): Function 'm__valid' requires unsupported method '.keys()' requires map receiver, got unknown for service 'cloud.firestore'
 ```
+
+The last case is a second shape with its own message: a helper that takes a map field of the incoming document (`valid(request.resource.data.shot)`) can't call a map-only method on it. The call-site analysis types the argument as `unknown`, and a method that exists only on maps (`keys()`, `values()`, `diff()`) is refused for an `unknown` receiver instead of being allowed or checked at run time. Found writing pool's shot validation.
 
 ## Suspected cause
 
@@ -42,3 +45,5 @@ Treat a method on an untyped field of a known document as allowed when the metho
 ## Workaround in pyric-games
 
 Tic-tac-toe writes `request.resource.data.board...` out in full instead of binding it. Uno keeps a `size` field on the match (enforced equal to `players.size()` by the join rule) so the subcollection rules read `get(...).data.size` instead of calling `.size()`.
+
+Pool validates the shot map with `request.resource.data.shot` written out in full inside `poolShotBasics` rather than passing it to a helper, and calls `poolNewly()` at each use instead of passing the newly pocketed set as a parameter (a set parameter is typed `unknown` the same way, so `.size()` on it is refused).

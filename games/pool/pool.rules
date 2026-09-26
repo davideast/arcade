@@ -1,0 +1,150 @@
+rules_version = '2+modules';
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn } from 'turns';
+import { isPlaying, moveIncremented } from 'state';
+
+// Eight-ball match rules. The match document follows the stdlib convention
+// (host, guest, currentTurn, status, winner, moveCount) plus the table:
+// `balls` (32 coordinates), `potted` (object balls pocketed), `prevBalls` and
+// `prevPotted` (the table before the last shot), `shot`, `scratch` and
+// `hostGroup`.
+//
+// Rules can't run the physics, so they don't check where balls stopped or
+// which went down. They check everything that follows from the reported
+// result: pocketed balls stay pocketed, the previous table is the stored one,
+// the group assignment, who shoots next, and who wins. Clients replay each
+// shot from `prevBalls` and `shot` to catch a forged result.
+
+function poolRack() {
+  return [2800, 3000, 8000, 3000, 8520, 3303, 9040, 3605, 9560, 3908, 10080, 1790, 10080, 3605, 9560, 2698,
+          9040, 3000, 8520, 2698, 9040, 2395, 9560, 2093, 10080, 4210, 10080, 2395, 9560, 3303, 10080, 3000];
+}
+
+function poolSolids() {
+  return [1, 2, 3, 4, 5, 6, 7];
+}
+
+function poolStripes() {
+  return [9, 10, 11, 12, 13, 14, 15];
+}
+
+function poolOther(seat) {
+  return seat == 'host' ? 'guest' : 'host';
+}
+
+function poolGroupOf(seat, hostGroup) {
+  return seat == 'host' || hostGroup == ''
+    ? hostGroup
+    : (hostGroup == 'solids' ? 'stripes' : 'solids');
+}
+
+function poolGroupBalls(group) {
+  return group == 'solids' ? poolSolids() : (group == 'stripes' ? poolStripes() : []);
+}
+
+function poolNewly() {
+  return request.resource.data.potted.toSet().difference(resource.data.potted.toSet());
+}
+
+// The table stays open until a shot without a scratch pockets balls of one
+// group only; the shooter takes that group.
+function poolGroupAssigned() {
+  let seat = resource.data.currentTurn;
+  let scratch = request.resource.data.scratch;
+  let claimed = poolNewly().size() > 0 && poolNewly().hasOnly(poolSolids())
+    ? 'solids'
+    : (poolNewly().size() > 0 && poolNewly().hasOnly(poolStripes()) ? 'stripes' : '');
+  return request.resource.data.hostGroup == (resource.data.hostGroup != ''
+    ? resource.data.hostGroup
+    : (scratch || claimed == '' ? '' : poolGroupOf(seat, claimed)));
+}
+
+// The shooter keeps the table after pocketing one of their own group without
+// a scratch or the 8.
+function poolTurnPassed() {
+  let seat = resource.data.currentTurn;
+  let mine = poolGroupOf(seat, request.resource.data.hostGroup);
+  let keep = request.resource.data.scratch == false
+    && !poolNewly().hasAny([8])
+    && poolNewly().hasAny(poolGroupBalls(mine));
+  return request.resource.data.currentTurn == (keep ? seat : poolOther(seat));
+}
+
+function poolShotBasics() {
+  return request.auth != null && isPlaying() && isMyTurn() && moveIncremented()
+    && request.resource.data.prevBalls == resource.data.balls
+    && request.resource.data.prevPotted == resource.data.potted
+    && request.resource.data.potted.hasAll(resource.data.potted)
+    && request.resource.data.potted.size() == resource.data.potted.size() + poolNewly().size()
+    && request.resource.data.potted.hasOnly([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    && request.resource.data.balls is list
+    && request.resource.data.balls.size() == 32
+    && request.resource.data.scratch is bool
+    && request.resource.data.shot.keys().hasOnly(['dx', 'dy', 'power'])
+    && request.resource.data.shot.dx is int
+    && request.resource.data.shot.dy is int
+    && request.resource.data.shot.power is int
+    && request.resource.data.shot.power >= 1 && request.resource.data.shot.power <= 100
+    && request.resource.data.shot.dx >= -1000 && request.resource.data.shot.dx <= 1000
+    && request.resource.data.shot.dy >= -1000 && request.resource.data.shot.dy <= 1000
+    && (request.resource.data.shot.dx != 0 || request.resource.data.shot.dy != 0)
+    && poolGroupAssigned()
+    && poolTurnPassed()
+    && onlyFieldsChanged(['balls', 'potted', 'prevBalls', 'prevPotted', 'shot', 'scratch', 'hostGroup',
+         'currentTurn', 'moveCount', 'status', 'winner']);
+}
+
+export function poolCreate() {
+  return validCreate()
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
+         'balls', 'potted', 'prevBalls', 'prevPotted', 'shot', 'scratch', 'hostGroup', 'createdAt'])
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.balls == poolRack()
+    && request.resource.data.prevBalls == poolRack()
+    && request.resource.data.potted == []
+    && request.resource.data.prevPotted == []
+    && request.resource.data.shot == {'dx': 0, 'dy': 0, 'power': 0}
+    && request.resource.data.scratch == false
+    && request.resource.data.hostGroup == '';
+}
+
+export function poolJoin() {
+  return validJoin() && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function poolCancel() {
+  return canCancel();
+}
+
+// A shot that leaves the 8 on the table.
+export function poolShot() {
+  return poolShotBasics()
+    && !poolNewly().hasAny([8])
+    && request.resource.data.status == 'playing'
+    && request.resource.data.winner == '';
+}
+
+// A shot that pockets the 8 ends the game. The shooter wins only with their
+// whole group pocketed on earlier shots and no scratch.
+export function poolFinish() {
+  let seat = resource.data.currentTurn;
+  let mine = poolGroupOf(seat, request.resource.data.hostGroup);
+  let cleared = mine != '' && resource.data.potted.hasAll(poolGroupBalls(mine));
+  return poolShotBasics()
+    && poolNewly().hasAny([8])
+    && request.resource.data.status == 'won'
+    && request.resource.data.winner == (cleared && request.resource.data.scratch == false ? seat : poolOther(seat));
+}
+
+export function poolResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}

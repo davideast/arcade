@@ -12,6 +12,9 @@ import {
   unoCreate, unoJoin, unoStart, unoDeal, unoPlay, unoDraw, unoCancel,
   unoDeckCreate, unoDeckRead, unoDrawsCreate, unoPlayedCreate
 } from '../games/uno/uno';
+import {
+  poolCreate, poolJoin, poolCancel, poolShot, poolFinish, poolResign
+} from '../games/pool/pool';
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -48,6 +51,15 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow create: if request.auth != null && unoPlayedCreate(database, matchId, int(i));
       }
+    }
+    match /pool/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if poolCreate();
+      allow delete: if poolCancel();
+      allow update: if resource.data.status == 'waiting' && (poolJoin());
+      allow update: if request.resource.data.status == 'playing' && resource.data.status == 'playing' && (poolShot());
+      allow update: if request.resource.data.status == 'won' && (poolFinish());
+      allow update: if request.resource.data.status == 'resigned' && (poolResign());
     }
   }
 }
