@@ -1,0 +1,30 @@
+rules_version = '2+modules';
+
+// One ruleset for every game. Each game's rules live next to the game and are
+// imported here; each match block starts every update rule with a comparison
+// the other transitions can't pass, so a write pays for its own branch only.
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn, turnFlipped } from 'turns';
+import { isPlaying, moveIncremented } from 'state';
+import {
+  ticTacToeCreate, ticTacToeJoin, ticTacToeCancel,
+  ticTacToeMove, ticTacToeWin, ticTacToeDraw, ticTacToeResign
+} from '../games/tictactoe/tictactoe';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /tictactoe/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if ticTacToeCreate();
+      allow delete: if ticTacToeCancel();
+      allow update: if resource.data.status == 'waiting' && (ticTacToeJoin());
+      allow update: if request.resource.data.status == 'playing' && resource.data.status == 'playing' && (ticTacToeMove());
+      allow update: if request.resource.data.winner == 'host' && request.resource.data.status == 'won' && (ticTacToeWin('host'));
+      allow update: if request.resource.data.winner == 'guest' && request.resource.data.status == 'won' && (ticTacToeWin('guest'));
+      allow update: if request.resource.data.status == 'draw' && (ticTacToeDraw());
+      allow update: if request.resource.data.status == 'resigned' && (ticTacToeResign());
+    }
+  }
+}

@@ -1,0 +1,88 @@
+// Tic-tac-toe match rules. The match document follows the stdlib convention
+// (host, guest, currentTurn, status, winner, moveCount) plus a `board` map of
+// nine cells named c<col>r<row> and `lastMove`, the cell a move filled.
+//
+// Every transition that accepts a move checks the whole move: one empty cell,
+// the mover's mark, and nothing else changed. Win and draw claims included.
+
+// Calls lobby, lifecycle, turns and state functions; the main rules file
+// imports them, because a local module cannot import.
+
+function cellNames() {
+  return ['c0r0', 'c1r0', 'c2r0', 'c0r1', 'c1r1', 'c2r1', 'c0r2', 'c1r2', 'c2r2'];
+}
+
+function line(b, mark, a, c, d) {
+  return b[a] == mark && b[c] == mark && b[d] == mark;
+}
+
+function hasLine(b, mark) {
+  return line(b, mark, 'c0r0', 'c1r0', 'c2r0')
+    || line(b, mark, 'c0r1', 'c1r1', 'c2r1')
+    || line(b, mark, 'c0r2', 'c1r2', 'c2r2')
+    || line(b, mark, 'c0r0', 'c0r1', 'c0r2')
+    || line(b, mark, 'c1r0', 'c1r1', 'c1r2')
+    || line(b, mark, 'c2r0', 'c2r1', 'c2r2')
+    || line(b, mark, 'c0r0', 'c1r1', 'c2r2')
+    || line(b, mark, 'c2r0', 'c1r1', 'c0r2');
+}
+
+function moveBasics() {
+  return request.auth != null && isPlaying() && isMyTurn()
+    && turnFlipped() && moveIncremented();
+}
+
+function placedOneCell() {
+  return resource.data.board[request.resource.data.lastMove] == ''
+    && request.resource.data.board[request.resource.data.lastMove] == resource.data.currentTurn
+    && request.resource.data.board.diff(resource.data.board).affectedKeys()
+         .hasOnly([request.resource.data.lastMove])
+    && request.resource.data.diff(resource.data).affectedKeys()
+         .hasOnly(['board', 'lastMove', 'currentTurn', 'moveCount', 'status', 'winner']);
+}
+
+export function ticTacToeCreate() {
+  return validCreate()
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status',
+         'winner', 'moveCount', 'board', 'lastMove', 'createdAt'])
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.lastMove == ''
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.board.keys().hasOnly(cellNames())
+    && request.resource.data.board.size() == 9
+    && request.resource.data.board.values().hasOnly(['']);
+}
+
+export function ticTacToeJoin() {
+  return validJoin() && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function ticTacToeCancel() {
+  return canCancel();
+}
+
+export function ticTacToeMove() {
+  return request.resource.data.winner == '' && moveBasics() && placedOneCell();
+}
+
+export function ticTacToeWin(seat) {
+  return request.resource.data.status == 'won'
+    && moveBasics() && placedOneCell()
+    && hasLine(request.resource.data.board, seat);
+}
+
+export function ticTacToeDraw() {
+  return request.resource.data.winner == ''
+    && moveBasics() && placedOneCell()
+    && request.resource.data.moveCount == 9;
+}
+
+export function ticTacToeResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}

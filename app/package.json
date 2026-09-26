@@ -1,0 +1,15 @@
+{
+  "name": "@games/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "rules:resolve": "pyric firestore rules resolve firestore.modules.rules --out firestore.rules"
+  },
+  "dependencies": {
+    "@games/kit": "workspace:*",
+    "@games/tictactoe": "workspace:*",
+    "@games/turn-net": "workspace:*"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@games/tictactoe",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@games/kit": "workspace:*",
+    "@games/turn-net": "workspace:*"
+  },
+  "devDependencies": {
+    "@games/harness": "workspace:*"
+  },
+  "peerDependencies": { "phaser": "4.2.1" }
+}

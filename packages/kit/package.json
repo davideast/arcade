@@ -1,0 +1,7 @@
+{
+  "name": "@games/kit",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "peerDependencies": { "phaser": "4.2.1" }
+}
