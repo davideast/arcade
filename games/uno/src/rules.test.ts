@@ -93,6 +93,7 @@ async function playGame(seed: number, playerCount: number): Promise<GameResult> 
 
   const deck = shuffledDeck(random, playerCount);
   await expectDenied('non-host writes the deck', as(uids[1]), deckOps(id, deck).slice(0, 1));
+  await expectDenied('write a card past the end of the deck', as(host), [{ type: 'set', path: `${matchPath(id)}/deck/108`, data: { card: deck[0] } }]);
   await expectAllowed('deck', as(host), deckOps(id, deck));
   const dealBad = dealOps(id, m, deck);
   (dealBad[dealBad.length - 1] as { data: Record<string, unknown> }).data.counts = m.players.map(() => 6);

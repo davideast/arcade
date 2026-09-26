@@ -120,13 +120,16 @@ export function battleshipBoardRead(db, id, uid) {
 // The shot document: fired by the player on turn, named for their seat and the
 // cell, at a cell on the board, with `hit` true exactly when the defender's
 // fleet covers the cell. The match update in the same batch names it.
-export function battleshipShotCreate(db, id, shotId, prefix, cell) {
+export function battleshipShotCreate(db, id, shotId) {
+  let prefix = shotId[0:1];
+  let cell = int(shotId[1:3]);
   let before = get(/databases/$(db)/documents/battleship/$(id)).data;
   let after = getAfter(/databases/$(db)/documents/battleship/$(id)).data;
   let seat = before.currentTurn;
   let defender = seat == 'host' ? before.guest : before.host;
   let fleet = get(/databases/$(db)/documents/battleship/$(id)/boards/$(defender)).data;
   return request.auth != null
+    && shotId.size() == 3
     && before.status == 'playing'
     && request.auth.uid == before[seat]
     && prefix == (seat == 'host' ? 'h' : 'g')

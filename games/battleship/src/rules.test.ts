@@ -236,6 +236,12 @@ async function playGame(seed: number, fullGame: boolean): Promise<{ shots: numbe
     if (fired[seat].size > 0) {
       const again = [...fired[seat]][0];
       await expectDenied('fire at the same cell twice', shooter, shotOps(id, m, again, fleetCells[other].has(again)));
+      const [shot, update] = shotOps(id, m, again, fleetCells[other].has(again));
+      const longId = `${shotId(seat, again)}0`;
+      await expectDenied('fire at the same cell twice under a longer shot id', shooter, [
+        { ...shot, path: `${matchPath(id)}/shots/${longId}` },
+        { ...update, data: { ...(update as { data: Data }).data, lastShot: longId } },
+      ]);
     }
     await readDenied('read the opponent\'s fleet mid-battle', shooter, `${matchPath(id)}/boards/${m[other]}`);
 

@@ -70,9 +70,10 @@ export function unoStart() {
     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastAction']);
 }
 
-// `topId` is the id of the opening card, players.size() * 7, as a string.
-export function unoDeal(db, id, topId) {
+// The opening card is deck/{players.size() * 7}.
+export function unoDeal(db, id) {
   let k = resource.data.players.size() * 7;
+  let topId = string(k);
   let top = get(/databases/$(db)/documents/uno/$(id)/deck/$(topId)).data.card;
   return request.auth.uid == resource.data.host
     && resource.data.status == 'dealing'
@@ -91,8 +92,9 @@ export function unoDeal(db, id, topId) {
          'color', 'value', 'pending', 'drawIndex', 'lastCard', 'lastAction']);
 }
 
-// `i` is the played card's id, request.resource.data.lastCard as a string.
-export function unoPlay(db, id, i) {
+// The played card is deck/{request.resource.data.lastCard}.
+export function unoPlay(db, id) {
+  let i = string(request.resource.data.lastCard);
   let card = get(/databases/$(db)/documents/uno/$(id)/deck/$(i)).data.card;
   let v = card[1:2];
   let wild = card[0:1] == 'x';
@@ -140,9 +142,9 @@ export function unoCancel() {
 }
 
 // deck/{i}: the host writes the shuffled deck while dealing; a card is readable
-// by the player who drew it, and by everyone once played. `n` is the id as an int.
-export function unoDeckCreate(db, id, n) {
-  return unoDeckCreateFor(get(/databases/$(db)/documents/uno/$(id)).data, n);
+// by the player who drew it, and by everyone once played.
+export function unoDeckCreate(db, id, i) {
+  return unoDeckCreateFor(get(/databases/$(db)/documents/uno/$(id)).data, int(i));
 }
 
 function unoDeckCreateFor(m, n) {
@@ -159,9 +161,9 @@ export function unoDeckRead(db, id, i) {
 
 // draws/{i}: written by the host for the opening hands, or by the player on
 // turn for the cards their draw takes, within the range the draw moved.
-export function unoDrawsCreate(db, id, n) {
+export function unoDrawsCreate(db, id, i) {
   return unoDrawsCreateFor(get(/databases/$(db)/documents/uno/$(id)).data,
-    getAfter(/databases/$(db)/documents/uno/$(id)).data, n);
+    getAfter(/databases/$(db)/documents/uno/$(id)).data, int(i));
 }
 
 function unoDrawsCreateFor(before, after, n) {
@@ -177,9 +179,9 @@ function unoDrawsCreateFor(before, after, n) {
 }
 
 // played/{i}: the opening card at the deal, or the card the player on turn plays.
-export function unoPlayedCreate(db, id, n) {
+export function unoPlayedCreate(db, id, i) {
   return unoPlayedCreateFor(get(/databases/$(db)/documents/uno/$(id)).data,
-    getAfter(/databases/$(db)/documents/uno/$(id)).data, n);
+    getAfter(/databases/$(db)/documents/uno/$(id)).data, int(i));
 }
 
 function unoPlayedCreateFor(before, after, n) {

@@ -28,14 +28,13 @@ function checkersStartBoard() {
   };
 }
 
-// File and rank of a square name as numbers. Map lookups, since module
-// functions can't call int().
+// File and rank of a square name as numbers.
 function ckFile(sq) {
   return {'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5, 'f': 6, 'g': 7, 'h': 8}[sq[0:1]];
 }
 
 function ckRank(sq) {
-  return {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8}[sq[1:2]];
+  return int(sq[1:2]);
 }
 
 // One diagonal square.
