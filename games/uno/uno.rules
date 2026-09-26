@@ -34,11 +34,10 @@ function unoCountsMoved(delta) {
 export function unoCreate() {
   return signedIn()
     && request.resource.data.keys().hasOnly(['host', 'players', 'counts', 'status', 'turn', 'direction',
-         'color', 'value', 'pending', 'drawIndex', 'lastCard', 'lastAction', 'moveCount', 'winner', 'createdAt', 'size'])
+         'color', 'value', 'pending', 'drawIndex', 'lastCard', 'lastAction', 'moveCount', 'winner', 'createdAt'])
     && request.resource.data.host == request.auth.uid
     && request.resource.data.players == [request.auth.uid]
     && request.resource.data.counts == [0]
-    && request.resource.data.size == 1
     && request.resource.data.status == 'waiting'
     && request.resource.data.turn == 0
     && request.resource.data.direction == 1
@@ -60,8 +59,7 @@ export function unoJoin() {
     && resource.data.players.size() < 4
     && request.resource.data.players == resource.data.players.concat([request.auth.uid])
     && request.resource.data.counts == resource.data.counts.concat([0])
-    && request.resource.data.size == resource.data.size + 1
-    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'counts', 'size', 'lastAction']);
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'counts', 'lastAction']);
 }
 
 export function unoStart() {
@@ -170,8 +168,8 @@ function unoDrawsCreateFor(before, after, n) {
   return request.resource.data.keys().hasOnly(['uid'])
     && ((request.auth.uid == before.host
           && before.status == 'dealing' && after.status == 'playing'
-          && n < before.size * 7
-          && request.resource.data.uid == before.players[n % before.size])
+          && n < before.players.size() * 7
+          && request.resource.data.uid == before.players[n % before.players.size()])
       || (after.lastAction == 'draw'
           && before.players[before.turn] == request.auth.uid
           && request.resource.data.uid == request.auth.uid
@@ -189,7 +187,7 @@ function unoPlayedCreateFor(before, after, n) {
     && request.resource.data.by == request.auth.uid
     && ((request.auth.uid == before.host
           && before.status == 'dealing' && after.status == 'playing'
-          && n == before.size * 7)
+          && n == before.players.size() * 7)
       || (after.lastAction == 'play'
           && after.lastCard == n
           && before.players[before.turn] == request.auth.uid

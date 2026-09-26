@@ -84,12 +84,12 @@ async function playGame(seed: number, playerCount: number): Promise<GameResult> 
   for (const uid of uids.slice(1)) {
     await expectDenied('non-host starts', as(uid), startOps(id, { ...m, players: [host, uid] }));
     await expectAllowed(`join ${uid}`, as(uid), joinOps(id, m, uid));
-    m = { ...m, players: [...m.players, uid], size: m.size + 1, counts: [...m.counts, 0] };
+    m = { ...m, players: [...m.players, uid], counts: [...m.counts, 0] };
   }
-  await expectDenied('join twice', as(uids[1]), [{ type: 'update', path: matchPath(id), data: { players: [...m.players, uids[1]], size: m.size + 1, counts: [...m.counts, 0], lastAction: 'join' } }]);
+  await expectDenied('join twice', as(uids[1]), [{ type: 'update', path: matchPath(id), data: { players: [...m.players, uids[1]], counts: [...m.counts, 0], lastAction: 'join' } }]);
   await expectAllowed('start', as(host), startOps(id, m));
   m = { ...m, status: 'dealing' };
-  await expectDenied('join after start', stranger, [{ type: 'update', path: matchPath(id), data: { players: [...m.players, 'stranger'], size: m.size + 1, counts: [...m.counts, 0], lastAction: 'join' } }]);
+  await expectDenied('join after start', stranger, [{ type: 'update', path: matchPath(id), data: { players: [...m.players, 'stranger'], counts: [...m.counts, 0], lastAction: 'join' } }]);
 
   const deck = shuffledDeck(random, playerCount);
   await expectDenied('non-host writes the deck', as(uids[1]), deckOps(id, deck).slice(0, 1));
@@ -97,7 +97,12 @@ async function playGame(seed: number, playerCount: number): Promise<GameResult> 
   const dealBad = dealOps(id, m, deck);
   (dealBad[dealBad.length - 1] as { data: Record<string, unknown> }).data.counts = m.players.map(() => 6);
   await expectDenied('deal six cards', as(host), dealBad);
-  await expectAllowed('deal', as(host), dealOps(id, m, deck));
+  const dealt = dealOps(id, m, deck);
+  const k = playerCount * 7;
+  await expectDenied("deal a card into another player's hand", as(host), dealt.map((op, i) => i === 0 ? { ...op, data: { uid: m.players[1] } } : op));
+  await expectDenied('deal the opening card into the host hand', as(host), [{ type: 'set', path: `${matchPath(id)}/draws/${k}`, data: { uid: host } }, ...dealt]);
+  await expectDenied("mark a card in a player's hand as played", as(host), [{ type: 'set', path: `${matchPath(id)}/played/1`, data: { by: host } }, ...dealt]);
+  await expectAllowed('deal', as(host), dealt);
 
   const draws = new Map<number, string>();
   for (let i = 0; i < playerCount * 7; i++) draws.set(i, m.players[i % playerCount]);

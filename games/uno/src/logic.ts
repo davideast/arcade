@@ -18,8 +18,6 @@ export type UnoAction = 'create' | 'join' | 'start' | 'deal' | 'play' | 'draw' |
 export interface UnoMatch {
   host: string;
   players: string[];
-  /** players.length, kept as a field so rules on subcollections can read it. */
-  size: number;
   counts: number[];
   status: UnoStatus;
   turn: number;
@@ -51,7 +49,6 @@ export function createdMatch(host: string): UnoMatch {
   return {
     host,
     players: [host],
-    size: 1,
     counts: [0],
     status: 'waiting',
     turn: 0,
@@ -71,7 +68,7 @@ export function joinOps(id: string, m: UnoMatch, uid: string): WriteOp[] {
   if (m.status !== 'waiting' || m.players.includes(uid) || m.players.length >= MAX_PLAYERS) {
     throw new Error('That table is full or already started.');
   }
-  return [{ type: 'update', path: matchPath(id), data: { players: [...m.players, uid], size: m.size + 1, counts: [...m.counts, 0], lastAction: 'join' } }];
+  return [{ type: 'update', path: matchPath(id), data: { players: [...m.players, uid], counts: [...m.counts, 0], lastAction: 'join' } }];
 }
 
 export function startOps(id: string, m: UnoMatch): WriteOp[] {

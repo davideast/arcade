@@ -35,8 +35,8 @@ function setup() {
     'tictactoe/won': { ...ticTacToeDone, status: 'won', winner: 'host' },
     'tictactoe/playing': { ...ticTacToeDone, status: 'playing', winner: '' },
     'tictactoe/waiting': { ...ticTacToeDone, guest: '', status: 'waiting', winner: '' },
-    'uno/won': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid', 'third-uid'], size: 3, status: 'won', winner: 'third-uid', createdAt: new Date(0) },
-    'uno/playing': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid'], size: 2, status: 'playing', createdAt: new Date(0) },
+    'uno/won': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid', 'third-uid'], status: 'won', winner: 'third-uid', createdAt: new Date(0) },
+    'uno/playing': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid'], status: 'playing', createdAt: new Date(0) },
     'battleship/won': { ...battleshipMatch('host-uid'), guest: 'guest-uid', status: 'won', winner: 'host', createdAt: new Date(0) },
     'scores/resigned': ticTacToeDone,
   };
