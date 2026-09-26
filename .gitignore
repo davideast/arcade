@@ -1,7 +1,27 @@
+# Dependencies and build output.
 node_modules/
 dist/
+
+# Local Pyric sandbox state (hosted dev server data, sessions).
 .pyric/
-.DS_Store
+
+# Local run notes and scratch scripts.
 .overnight/
+
+# Written by deploy/index.ts for the target project.
 firebase.json
 .firebaserc
+
+# Firebase CLI output.
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+
+# Credentials and environment. Keys stay outside the repository.
+.env
+.env.*
+*-adminsdk-*.json
+service-account*.json
+
+.DS_Store
