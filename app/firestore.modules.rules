@@ -15,6 +15,10 @@ import {
 import {
   poolCreate, poolJoin, poolCancel, poolShot, poolFinish, poolResign
 } from '../games/pool/pool';
+import {
+  battleshipCreate, battleshipJoin, battleshipCancel, battleshipReady, battleshipBoardCreate,
+  battleshipBoardRead, battleshipShotCreate, battleshipShot, battleshipResign
+} from '../games/battleship/battleship';
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -60,6 +64,25 @@ service cloud.firestore {
       allow update: if request.resource.data.status == 'playing' && resource.data.status == 'playing' && (poolShot());
       allow update: if request.resource.data.status == 'won' && (poolFinish());
       allow update: if request.resource.data.status == 'resigned' && (poolResign());
+    }
+    match /battleship/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if battleshipCreate();
+      allow delete: if battleshipCancel();
+      allow update: if request.resource.data.status == 'placing' && resource.data.status == 'waiting' && (battleshipJoin());
+      allow update: if resource.data.status == 'placing' && (battleshipReady(database, matchId));
+      allow update: if resource.data.status == 'playing' && request.resource.data.status != 'resigned' && (battleshipShot(database, matchId));
+      allow update: if request.resource.data.status == 'resigned' && (battleshipResign());
+
+      match /boards/{uid} {
+        allow get: if battleshipBoardRead(database, matchId, uid);
+        allow create: if battleshipBoardCreate(database, matchId, uid);
+      }
+      match /shots/{shotId} {
+        allow read: if request.auth != null;
+        allow create: if shotId.size() == 3
+          && battleshipShotCreate(database, matchId, shotId, shotId[0:1], int(shotId[1:3]));
+      }
     }
   }
 }

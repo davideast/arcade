@@ -1,0 +1,168 @@
+rules_version = '2+modules';
+
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn } from 'turns';
+
+// Battleship match rules. The match document follows the stdlib convention
+// (host, guest, currentTurn, status, winner, moveCount) plus hostReady,
+// guestReady, hostHits, guestHits (hits each seat scored) and lastShot.
+//
+// Each fleet is boards/{uid}: readable only by its owner until the match
+// ends, and create-only, so ships can't move after placement. A shot is the
+// create-only document shots/{h|g}{cell} plus a match update in one batch.
+// The shot rule reads the defender's fleet with get() and requires the
+// reported hit to match it, so the attacker never sees the fleet and the
+// answer is still enforced.
+
+function bsCells5(s, k) {
+  return [s, s + k, s + 2 * k, s + 3 * k, s + 4 * k];
+}
+
+function bsCells4(s, k) {
+  return [s, s + k, s + 2 * k, s + 3 * k];
+}
+
+function bsCells3(s, k) {
+  return [s, s + k, s + 2 * k];
+}
+
+function bsCells2(s, k) {
+  return [s, s + k];
+}
+
+function bsStep(dir) {
+  return dir == 'h' ? 1 : 10;
+}
+
+// A ship of `len` from `s` stays on the board: across a row, or down the columns.
+function bsInBounds(s, dir, len) {
+  return s is int && s >= 0 && s <= 99 && dir in ['h', 'v']
+    && (dir == 'h' ? s % 10 + len - 1 <= 9 : s + (len - 1) * 10 <= 99);
+}
+
+// The five ships in order (5, 4, 3, 3, 2), each on the board, and `cells` is
+// exactly their cells; 17 distinct cells means no two ships overlap.
+function bsValidFleet() {
+  let st = request.resource.data.starts;
+  let d = request.resource.data.dirs;
+  return request.resource.data.keys().hasOnly(['starts', 'dirs', 'cells'])
+    && request.resource.data.starts.size() == 5
+    && request.resource.data.dirs.size() == 5
+    && bsInBounds(st[0], d[0], 5) && bsInBounds(st[1], d[1], 4) && bsInBounds(st[2], d[2], 3)
+    && bsInBounds(st[3], d[3], 3) && bsInBounds(st[4], d[4], 2)
+    && request.resource.data.cells == bsCells5(st[0], bsStep(d[0])) + bsCells4(st[1], bsStep(d[1]))
+         + bsCells3(st[2], bsStep(d[2])) + bsCells3(st[3], bsStep(d[3])) + bsCells2(st[4], bsStep(d[4]))
+    && request.resource.data.cells.toSet().size() == 17;
+}
+
+export function battleshipCreate() {
+  return request.auth != null
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
+         'hostReady', 'guestReady', 'hostHits', 'guestHits', 'lastShot', 'createdAt'])
+    && request.resource.data.host == request.auth.uid
+    && request.resource.data.guest == ''
+    && request.resource.data.status == 'waiting'
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.hostReady == false
+    && request.resource.data.guestReady == false
+    && request.resource.data.hostHits == 0
+    && request.resource.data.guestHits == 0
+    && request.resource.data.lastShot == ''
+    && request.resource.data.createdAt == request.time;
+}
+
+export function battleshipJoin() {
+  return request.auth != null
+    && resource.data.status == 'waiting'
+    && resource.data.guest == ''
+    && request.auth.uid != resource.data.host
+    && request.resource.data.guest == request.auth.uid
+    && request.resource.data.status == 'placing'
+    && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function battleshipCancel() {
+  return request.auth != null && resource.data.status == 'waiting' && request.auth.uid == resource.data.host;
+}
+
+// A player marks their seat ready in the batch that writes their fleet; the
+// second ready player starts the battle.
+export function battleshipReady(db, id) {
+  let seat = request.auth.uid == resource.data.host ? 'host' : 'guest';
+  let other = seat == 'host' ? 'guest' : 'host';
+  return request.auth != null
+    && resource.data.status == 'placing'
+    && (request.auth.uid == resource.data.host || request.auth.uid == resource.data.guest)
+    && resource.data[seat + 'Ready'] == false
+    && request.resource.data[seat + 'Ready'] == true
+    && existsAfter(/databases/$(db)/documents/battleship/$(id)/boards/$(request.auth.uid))
+    && request.resource.data.status == (resource.data[other + 'Ready'] ? 'playing' : 'placing')
+    && onlyFieldsChanged([seat + 'Ready', 'status']);
+}
+
+export function battleshipBoardCreate(db, id, uid) {
+  let m = get(/databases/$(db)/documents/battleship/$(id)).data;
+  return request.auth != null
+    && request.auth.uid == uid
+    && (uid == m.host || uid == m.guest)
+    && m.status == 'placing'
+    && bsValidFleet();
+}
+
+export function battleshipBoardRead(db, id, uid) {
+  let m = get(/databases/$(db)/documents/battleship/$(id)).data;
+  return request.auth != null
+    && (request.auth.uid == uid || m.status in ['won', 'resigned']);
+}
+
+// The shot document: fired by the player on turn, named for their seat and the
+// cell, at a cell on the board, with `hit` true exactly when the defender's
+// fleet covers the cell. The match update in the same batch names it.
+export function battleshipShotCreate(db, id, shotId, prefix, cell) {
+  let before = get(/databases/$(db)/documents/battleship/$(id)).data;
+  let after = getAfter(/databases/$(db)/documents/battleship/$(id)).data;
+  let seat = before.currentTurn;
+  let defender = seat == 'host' ? before.guest : before.host;
+  let fleet = get(/databases/$(db)/documents/battleship/$(id)/boards/$(defender)).data;
+  return request.auth != null
+    && before.status == 'playing'
+    && request.auth.uid == before[seat]
+    && prefix == (seat == 'host' ? 'h' : 'g')
+    && cell >= 0 && cell <= 99
+    && request.resource.data.keys().hasOnly(['by', 'cell', 'hit'])
+    && request.resource.data.by == request.auth.uid
+    && request.resource.data.cell == cell
+    && request.resource.data.hit == (cell in fleet.cells)
+    && after.lastShot == shotId
+    && after.moveCount == before.moveCount + 1;
+}
+
+// The match update for a shot: it names a new shot document written in the
+// same batch, adds its hit to the shooter's count, passes the turn, and ends
+// the match when the shooter has hit all 17 cells.
+export function battleshipShot(db, id) {
+  let seat = resource.data.currentTurn;
+  let shot = getAfter(/databases/$(db)/documents/battleship/$(id)/shots/$(request.resource.data.lastShot)).data;
+  let hits = resource.data[seat + 'Hits'] + (shot.hit ? 1 : 0);
+  return request.auth != null
+    && resource.data.status == 'playing'
+    && isMyTurn()
+    && !exists(/databases/$(db)/documents/battleship/$(id)/shots/$(request.resource.data.lastShot))
+    && shot.by == request.auth.uid
+    && request.resource.data[seat + 'Hits'] == hits
+    && request.resource.data.currentTurn == (seat == 'host' ? 'guest' : 'host')
+    && request.resource.data.moveCount == resource.data.moveCount + 1
+    && request.resource.data.status == (hits == 17 ? 'won' : 'playing')
+    && request.resource.data.winner == (hits == 17 ? seat : '')
+    && onlyFieldsChanged([seat + 'Hits', 'currentTurn', 'moveCount', 'lastShot', 'status', 'winner']);
+}
+
+export function battleshipResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && resource.data.status == 'playing'
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}

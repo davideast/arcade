@@ -8,6 +8,7 @@
     "rules:resolve": "pyric firestore rules resolve firestore.modules.rules --out firestore.rules"
   },
   "dependencies": {
+    "@games/battleship": "workspace:*",
     "@games/kit": "workspace:*",
     "@games/pool": "workspace:*",
     "@games/tictactoe": "workspace:*",

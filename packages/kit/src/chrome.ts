@@ -60,9 +60,17 @@ export function matchChrome(
           playerObjects.push(scene.add.rectangle(SIDE.x + 3, y - 2, SIDE.width - 6, 11, PALETTE.maroon).setOrigin(0, 0));
         }
         if (p.mark) playerObjects.push(text(scene, SIDE.x + 6, y, p.mark, { color: p.markColor ?? 'cream' }));
-        const name = `${p.name}${p.you ? ' (you)' : ''}`;
-        playerObjects.push(text(scene, SIDE.x + (p.mark ? 18 : 6), y, name, { color: p.active ? 'sand' : 'cream' }));
-        if (p.detail) playerObjects.push(text(scene, SIDE.x + SIDE.width - 6, y, p.detail, { color: 'lavender', align: 'right' }));
+        const left = SIDE.x + (p.mark ? 18 : 6);
+        const label = text(scene, left, y, `${p.name}${p.you ? ' (you)' : ''}`, { color: p.active ? 'sand' : 'cream' });
+        playerObjects.push(label);
+        if (p.detail) {
+          const detail = text(scene, SIDE.x + SIDE.width - 6, y, p.detail, { color: 'lavender', align: 'right' });
+          playerObjects.push(detail);
+          // Keep the name clear of the detail: drop "(you)" to "*", then trim.
+          const room = detail.x - detail.width - 4 - left;
+          if (label.width > room && p.you) label.setText(`${p.name}*`);
+          while (label.width > room && label.text.length > 2) label.setText(`${label.text.slice(0, -2)}.`);
+        }
       });
     },
     setActions(actions) {
