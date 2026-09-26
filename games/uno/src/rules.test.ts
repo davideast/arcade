@@ -224,12 +224,10 @@ describe('Uno Security Rules', () => {
   for (const players of (process.env.UNO_PLAYERS ?? '2,3,4').split(',').map(Number)) {
     test(`${players} players: every real action allowed, every cheat denied`, async () => {
       const results = [];
-      // Every write re-parses the ruleset in the sandbox (bug 0007), so 3 and 4 players run one game each.
-      const seeds = players === 2 ? [1, 2, 3] : [1];
-      for (const seed of seeds) results.push(await playGame(seed * 10 + players, players));
+      for (const seed of [1, 2, 3]) results.push(await playGame(seed * 10 + players, players));
       const failures = results.flatMap((r, i) => r.failures.map((f) => `seed ${i}: ${f}`));
       expect(failures.slice(0, 20)).toEqual([]);
       expect(results.every((r) => r.moves > 5)).toBe(true);
-    }, 600_000);
+    }, 60_000);
   }
 });

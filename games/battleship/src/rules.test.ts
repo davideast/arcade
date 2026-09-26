@@ -270,14 +270,11 @@ async function playGame(seed: number, fullGame: boolean): Promise<{ shots: numbe
 
 describe('Battleship Security Rules', () => {
   test('placement, shots and fleet privacy: real actions allowed, cheats denied', async () => {
-    // BATTLESHIP_PROBE runs one short game; every cheat still runs before every shot.
-    const probe = process.env.BATTLESHIP_PROBE === '1';
-    const results = [await playGame(1, false)];
-    if (!probe) results.push(await playGame(2, true), await playGame(3, true));
+    const results = [await playGame(1, false), await playGame(2, true), await playGame(3, true)];
     const failures = results.flatMap((r, i) => r.failures.map((f) => `game ${i + 1}: ${f}`));
     expect(failures.slice(0, 20)).toEqual([]);
-    if (!probe) expect(results.slice(1).every((r) => r.winner !== '' && r.shots >= FLEET_CELLS)).toBe(true);
-  }, 600_000);
+    expect(results.slice(1).every((r) => r.winner !== '' && r.shots >= FLEET_CELLS)).toBe(true);
+  }, 60_000);
 });
 
 test('shot ids name the seat and the cell', () => {

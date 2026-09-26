@@ -308,16 +308,14 @@ async function mates(): Promise<string[]> {
 
 describe('Chess Security Rules', () => {
   test('real moves allowed, cheats denied, illegal moves caught by replay', async () => {
-    // CHESS_PROBE runs one short game; every cheat still runs before every move.
-    const probe = process.env.CHESS_PROBE === '1';
     const results = [];
-    for (const seed of probe ? [1] : [1, 2, 3]) results.push(await playGame(seed, probe ? 10 : 40));
+    for (const seed of [1, 2, 3]) results.push(await playGame(seed, 40));
     const failures = results.flatMap((r, i) => r.failures.map((f) => `game ${i + 1}: ${f}`));
     expect(failures.slice(0, 20)).toEqual([]);
     expect(results.some((r) => r.illegalCaught)).toBe(true);
-  }, 900_000);
+  }, 60_000);
 
   test('checkmate, castling, en passant, a false mate claim, and resignation', async () => {
     expect(await mates()).toEqual([]);
-  }, 300_000);
+  }, 60_000);
 });

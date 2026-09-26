@@ -257,20 +257,18 @@ async function endGame(seed: number): Promise<string[]> {
 describe('Pool Security Rules', () => {
   test('real shots allowed, every cheat denied, forged results caught by replay', async () => {
     const results = [];
-    // POOL_PROBE runs one short match: every cheat still runs before every shot, in a fifth of the time.
-    const probe = process.env.POOL_PROBE === '1';
     // Seed 9 has two balls down by its second shot, which the ball-trading cheat needs.
-    for (const seed of probe ? [9] : [1, 3, 9]) results.push(await playMatch(seed, probe ? 8 : 25));
+    for (const seed of [1, 3, 9]) results.push(await playMatch(seed, 25));
     const failures = results.flatMap((r, i) => r.failures.map((f) => `seed ${i + 1}: ${f}`));
     expect(failures.slice(0, 20)).toEqual([]);
     // A random shot can pocket the 8 and end a match early, so count shots across matches.
-    expect(results.reduce((sum, r) => sum + r.shots, 0)).toBeGreaterThan(probe ? 5 : 30);
+    expect(results.reduce((sum, r) => sum + r.shots, 0)).toBeGreaterThan(30);
     expect(results.some((r) => r.forgedCaught)).toBe(true);
-  }, 600_000);
+  }, 60_000);
 
   test('the 8 decides the winner', async () => {
     expect(await endGame(9)).toEqual([]);
-  }, 600_000);
+  }, 60_000);
 });
 
 test('physics replays exactly', () => {
