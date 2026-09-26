@@ -32,6 +32,8 @@ No reload after fixing `b.rules`; one reload only after the main file is touched
 reloads after fixing b.rules: 0; after touching the main file: 1
 ```
 
+It happened again adding pool: the first save of `games/pool/pool.rules` failed resolution (bug 0001), three later fixes to that module produced no reload, and the dev server kept serving rules without a `/pool` match block until the main file was touched.
+
 ## Suspected cause
 
 Confirmed by reading. `packages/cli/src/serve/vite-generation-rules-watch.ts`: files are added to Vite's watcher only from `session.firestoreRulesFiles()`, at startup and after a `reloaded` result. `SandboxSession.firestoreRulesFiles()` (`packages/cli/src/serve/sandbox-session.ts`) returns the module files of the last successful `prepareProjectRules`, and a rejected reload leaves them unchanged. `pyric dev`'s `watchRulesFiles` in `packages/cli/src/cli/serve.ts` syncs the same way, only on `reloaded`. The #766 PR notes this as intended ("A reload that fails keeps the last good rules and the current watch set"), but it leaves the fix-the-module loop broken.

@@ -96,6 +96,10 @@ async function shotCheats(env: Env, doc: PoolDoc, real: Data, shooter: Db, watch
   await expectDenied('a stranger shoots', stranger, update(real));
   if (doc.potted.length > 0) {
     await expectDenied('take a pocketed ball back', shooter, update({ ...real, potted: (real.potted as number[]).slice(1) }));
+    if (doc.potted.length >= 2) {
+      const potted = real.potted as number[];
+      await expectDenied('trade a pocketed ball for a repeat of another', shooter, update({ ...real, potted: [potted[0], potted[0], ...potted.slice(2)] }));
+    }
     await expectDenied('pocket a ball twice', shooter, update({ ...real, potted: [...(real.potted as number[]), doc.potted[0]] }));
   }
   await expectDenied('rewrite the table before the shot', shooter, update({ ...real, prevBalls: doc.balls.map((v, i) => (i === 0 ? v + 1 : v)) }));
@@ -106,6 +110,13 @@ async function shotCheats(env: Env, doc: PoolDoc, real: Data, shooter: Db, watch
   if (group !== '') await expectDenied('give up a taken group', shooter, update({ ...real, hostGroup: '' }));
   await expectDenied('claim the win without the 8', shooter, update({ ...real, status: 'won', winner: seat }));
   if (!doc.potted.includes(8) && !(real.potted as number[]).includes(8)) {
+    if (real.status === 'playing') {
+      await expectDenied('name a winner while play goes on', shooter, update({ ...real, winner: seat }));
+      await expectDenied('end the match without the 8', shooter, update({ ...real, status: 'won', winner: other(seat), currentTurn: other(seat) }));
+    }
+    await expectDenied('pocket the 8 and play on', shooter, update({
+      ...real, potted: [...(real.potted as number[]), 8], status: 'playing', winner: '', currentTurn: other(seat),
+    }));
     await expectDenied('pocket the 8 early and claim the win', shooter, update({
       ...real, potted: [...(real.potted as number[]), 8], status: 'won', winner: seat, currentTurn: other(seat),
     }));
@@ -119,6 +130,8 @@ async function shotCheats(env: Env, doc: PoolDoc, real: Data, shooter: Db, watch
   await expectDenied('aim with a fractional y', shooter, update({ ...real, shot: { ...shot, dy: shot.dy + 0.5 } }));
   await expectDenied('aim past the x range', shooter, update({ ...real, shot: { ...shot, dx: 1001 } }));
   await expectDenied('aim past the y range', shooter, update({ ...real, shot: { ...shot, dy: -1001 } }));
+  await expectDenied('aim past the top of the y range', shooter, update({ ...real, shot: { ...shot, dy: 1001 } }));
+  await expectDenied('aim past the bottom of the x range', shooter, update({ ...real, shot: { ...shot, dx: -1001 } }));
   await expectDenied('shoot with a fractional power', shooter, update({ ...real, shot: { ...shot, power: 50.5 } }));
   await expectDenied('shoot with an extra shot field', shooter, update({ ...real, shot: { ...shot, spin: 3 } }));
   await expectDenied('skip a move number', shooter, update({ ...real, moveCount: doc.moveCount + 2 }));
@@ -222,6 +235,9 @@ async function endGame(seed: number): Promise<string[]> {
     else await env.expectDenied(label, dbFor[seat], env.update(data));
   }
   const doc = seedPosition('host', SOLIDS);
+  const quiet = shotUpdate(doc, { dx: 1000, dy: 0, power: 50 }, { balls: doc.balls, scratch: false, newlyPotted: [] });
+  await env.expectDenied('host clears solids and claims the win without the 8', env.host, env.update({ ...quiet, status: 'won', winner: 'host' }));
+  await env.expectDenied('a stranger resigns the match', env.stranger, env.update({ status: 'resigned', winner: 'host' }));
   await env.expectDenied('guest resigns for the host', env.guest, env.update({ status: 'resigned', winner: 'guest' }));
   await env.expectAllowed('host resigns', env.host, env.update({ status: 'resigned', winner: 'guest' }));
   await env.expectDenied('shoot after the match ended', env.guest, env.update({ ...eight({ ...doc, status: 'playing' } as PoolDoc, false) }));
@@ -231,11 +247,14 @@ async function endGame(seed: number): Promise<string[]> {
 describe('Pool Security Rules', () => {
   test('real shots allowed, every cheat denied, forged results caught by replay', async () => {
     const results = [];
-    for (const seed of [1, 2, 3]) results.push(await playMatch(seed, 25));
+    // POOL_PROBE runs one short match: every cheat still runs before every shot, in a fifth of the time.
+    const probe = process.env.POOL_PROBE === '1';
+    // Seed 9 has two balls down by its second shot, which the ball-trading cheat needs.
+    for (const seed of probe ? [9] : [1, 3, 9]) results.push(await playMatch(seed, probe ? 8 : 25));
     const failures = results.flatMap((r, i) => r.failures.map((f) => `seed ${i + 1}: ${f}`));
     expect(failures.slice(0, 20)).toEqual([]);
     // A random shot can pocket the 8 and end a match early, so count shots across matches.
-    expect(results.reduce((sum, r) => sum + r.shots, 0)).toBeGreaterThan(30);
+    expect(results.reduce((sum, r) => sum + r.shots, 0)).toBeGreaterThan(probe ? 5 : 30);
     expect(results.some((r) => r.forgedCaught)).toBe(true);
   }, 600_000);
 
