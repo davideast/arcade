@@ -13,6 +13,8 @@ Firestore rules provide global conversion functions such as `string()` and `int(
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bun bugs/repro/0006.ts
 ```

@@ -13,6 +13,8 @@ The dev server watches the rules source and the module files of the last *succes
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bash bugs/repro/0008.sh
 ```

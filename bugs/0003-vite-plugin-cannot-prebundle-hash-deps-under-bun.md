@@ -13,6 +13,8 @@ The `pyric()` Vite plugin adds `optimizeDeps.include: ['js-md5', 'js-sha256']`. 
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bash bugs/repro/0003.sh
 ```

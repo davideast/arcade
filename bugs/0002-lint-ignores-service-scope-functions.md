@@ -13,6 +13,8 @@ status: open
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bun bugs/repro/0002.ts
 ```

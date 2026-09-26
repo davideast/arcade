@@ -13,6 +13,8 @@ A documentation defect; the package is correct. `pyric-admin` follows the modula
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bun bugs/repro/0005.ts
 ```

@@ -13,6 +13,8 @@ Every write and read the sandbox checks against rules calls `simulator.simulate(
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bun bugs/repro/0007.ts
 ```

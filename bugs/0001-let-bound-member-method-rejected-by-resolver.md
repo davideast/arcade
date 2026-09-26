@@ -13,6 +13,8 @@ Module resolution rejects a method call on a field of any document the compatibi
 
 ## Reproduction
 
+From the repository root:
+
 ```bash
 bun bugs/repro/0001.ts
 ```
