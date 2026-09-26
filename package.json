@@ -24,11 +24,6 @@
     "firebase": "^12.12.0",
     "phaser": "4.2.1"
   },
-  "//": "js-md5 and js-sha256 are pyric's own dependencies; listing them here lets Vite pre-bundle them for pyric's page runtime under Bun's isolated installs.",
-  "optionalDependencies": {
-    "js-md5": "^0.8.3",
-    "js-sha256": "^0.11.0"
-  },
   "devDependencies": {
     "vite": "^6.0.0",
     "@pyric/cli": "file:./vendor/pyric/pyric-cli-local-4.tgz",
