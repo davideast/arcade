@@ -5,7 +5,8 @@ severity: major
 package: "@pyric/cli"
 pyric_commit: 87a5303e
 found_in: arcade browser check under pyric({ hosted: true }) after adopting local-4
-status: open
+status: fixed
+fixed_in: 9c125203 (#777, 9c125203)
 ---
 ## Summary
 
@@ -89,3 +90,9 @@ Failing test first, in `packages/cli/test/serve/worker/event-stream.test.ts` or 
 Restart the dev server. The hosted observation history lives only in the server process's memory: the hosted runtime does not prime it from `app/.pyric/last-session.json` (only the SharedWorker boot path does, `packages/cli/src/serve/worker/serve-init.ts:661`). In the repro workspace, after filling history and restarting Vite in the same directory, the four subscriptions each received 0 events and the socket stayed open. Documents persist in `app/.pyric/state`, so a restart keeps game data. Do not delete `app/.pyric`; it is not needed and drops that data. The loop returns once play refills the history.
 
 To avoid the loop for a whole session, `pyric({ hosted: true, runtimeChip: false })` removes the chip's three subscriptions (`chip-install.ts:46` returns before subscribing), leaving one 8 MiB replay per socket. With one subscription on a full history the repro's socket stays open. This hides the chip's Traffic and Listeners panels, so it is not applied here.
+
+## Fixed
+
+Fixed by Pyric PR #777, merged as 9c125203, and verified on Pyric main 9c125203 (vendored as local-5). A page now holds one event-stream subscription per port and shares it among its `subscribeEvents` callers; a subscriber that arrives after the worker's history receives the page's copy, which follows resets and reconnects. `bash bugs/repro/0009.sh` exits 0: all four subscribers receive the history (28 events each) and the connection is not interrupted in 5 s. On local-4 the same script saw 23 interruptions in 5 s.
+
+Nothing to drop in the arcade: the workaround was to restart the dev server when the loop started.
