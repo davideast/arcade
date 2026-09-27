@@ -16,6 +16,8 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0010 to 0031 are fixed on Pyric main dbc35150, vendored here as local-6; every repro exits 0 there except 0005 (see above).
 
+0032 and 0033 were found on local-6 while verifying the chess showcase rules against the Rules Test API; both are open and their repros exit 1 on local-6.
+
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
 | [0001](0001-let-bound-member-method-rejected-by-resolver.md) | In a module, a method on a field of a get()/getAfter() document (or a let or parameter bound to one) is rejected | blocker | pyric | fixed (#768) |
@@ -49,3 +51,5 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0029](0029-rtdb-rules-created-after-start-never-load.md) | The dev server never loads a `database.rules.json` created after it starts; RTDB stays deny-all until a restart | major | @pyric/cli | fixed (#796) |
 | [0030](0030-rules-string-escapes-differ-from-production.md) | Rules string literals reject the `\x`, `\u` and octal escapes production accepts, and accept the `\/` escape production rejects | minor | pyric | fixed (#798) |
 | [0031](0031-rules-assembler-prints-unparseable-string.md) | The rules assembler prints a double-quoted string that contains an apostrophe as an unparseable single-quoted string | minor | pyric | fixed (#799) |
+| [0032](0032-firestore-simulator-ignores-expression-budget.md) | The Firestore rules simulator allows a request that production denies for passing the 1,000-expression budget | major | pyric | open |
+| [0033](0033-lint-silent-on-unbound-variable-and-unused-function.md) | Lint reports nothing for an unbound variable or an unused function, both of which production's compiler warns about | minor | pyric | open |
