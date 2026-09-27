@@ -1,0 +1,16 @@
+{
+  "name": "@games/sokoban",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./logic": "./src/logic.ts"
+  },
+  "dependencies": {
+    "@games/kit": "workspace:*",
+    "@games/turn-net": "workspace:*"
+  },
+  "peerDependencies": {
+    "phaser": "4.2.1"
+  }
+}
