@@ -5,7 +5,8 @@ severity: major
 package: pyric, @pyric/cli
 pyric_commit: 9c125203
 found_in: Air Hockey (running the guide's CLI checks on the generated database.rules.json)
-status: open
+status: fixed
+fixed_in: dbc35150 (#782, e88388ba)
 ---
 ## Summary
 
@@ -47,3 +48,9 @@ Have `CompiledRtdbRulesDocument.check()` collect the parsed findings from the co
 ## Workaround in pyric-games
 
 The Air Hockey rules test lints the TypeScript definition (`airHockeyRtdbRules.lint()`), not the JSON, and the drift check keeps the JSON equal to the definition's output.
+
+## Fixed
+
+Fixed by Pyric PR #782, merged as e88388ba, and verified on Pyric main dbc35150 (vendored as local-6). Checks on an RTDB rules JSON file now report their errors and fail on them. `bun bugs/repro/0015.ts` exits 0: `rtdbRules(json).lint()` reports PARSE_ERROR, and `pyric database rules validate` and `pyric rules lint --service database` exit 2.
+
+Nothing to drop in the arcade: the Air Hockey unit test lints the TypeScript definition, and the drift check keeps `app/database.rules.json` equal to its output.

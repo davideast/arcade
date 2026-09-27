@@ -84,30 +84,29 @@ function yachtFinal(t, w, n, status) {
     && status == (tie ? 'draw' : 'won');
 }
 
-// Written without a let for request.resource.data: lint misses a let-bound
-// read (bugs/0010).
 export function yachtCreate() {
+  let d = request.resource.data;
   return request.auth != null
-    && request.resource.data.keys().hasOnly(['host', 'players', 'status', 'turn', 'rolls', 'commit', 'keep', 'nonces', 'salt', 'dice',
+    && d.keys().hasOnly(['host', 'players', 'status', 'turn', 'rolls', 'commit', 'keep', 'nonces', 'salt', 'dice',
          'scores', 'totals', 'lastAction', 'lastSeat', 'lastCategory', 'moveCount', 'winner', 'createdAt'])
-    && request.resource.data.host == request.auth.uid
-    && request.resource.data.players == [request.auth.uid]
-    && request.resource.data.status == 'waiting'
-    && request.resource.data.turn == 0
-    && request.resource.data.rolls == 0
-    && request.resource.data.commit == ''
-    && request.resource.data.keep == [false, false, false, false, false]
-    && request.resource.data.nonces == {}
-    && request.resource.data.salt == ''
-    && request.resource.data.dice == [0, 0, 0, 0, 0]
-    && request.resource.data.scores == {}
-    && request.resource.data.totals == []
-    && request.resource.data.lastAction == 'create'
-    && request.resource.data.lastSeat == 0
-    && request.resource.data.lastCategory == ''
-    && request.resource.data.moveCount == 0
-    && request.resource.data.winner == -1
-    && request.resource.data.createdAt == request.time;
+    && d.host == request.auth.uid
+    && d.players == [request.auth.uid]
+    && d.status == 'waiting'
+    && d.turn == 0
+    && d.rolls == 0
+    && d.commit == ''
+    && d.keep == [false, false, false, false, false]
+    && d.nonces == {}
+    && d.salt == ''
+    && d.dice == [0, 0, 0, 0, 0]
+    && d.scores == {}
+    && d.totals == []
+    && d.lastAction == 'create'
+    && d.lastSeat == 0
+    && d.lastCategory == ''
+    && d.moveCount == 0
+    && d.winner == -1
+    && d.createdAt == request.time;
 }
 
 export function yachtJoin() {

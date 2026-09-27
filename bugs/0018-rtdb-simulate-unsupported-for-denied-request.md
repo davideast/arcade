@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey rules test (64 of 2,174 cross-checked requests)
-status: open
+status: fixed
+fixed_in: dbc35150 (#791, 5898a8ee)
 ---
 ## Summary
 
@@ -44,3 +45,9 @@ When no ancestor grants, return a DENY with the deepest ancestor that has a rule
 ## Workaround in pyric-games
 
 The Air Hockey sandbox test counts these denials apart (64 in a run) and fails on any other disagreement; the unit test lists the two cases it expects to come back UNSUPPORTED.
+
+## Fixed
+
+Fixed by Pyric PR #791, merged as 5898a8ee, and verified on Pyric main dbc35150 (vendored as local-6). RTDB `simulate` now reports DENY when no rule on the path grants the request. `bun bugs/repro/0018.ts` exits 0: all three requests are denied by the sandbox and by `simulate`.
+
+Workaround dropped: the Air Hockey tests no longer count these denials apart. The unit test expects every case to pass, and in the sandbox test `simulate` agrees with the sandbox on every case: 835 of 835 in the late match and 1432 of 1432 in the full match.

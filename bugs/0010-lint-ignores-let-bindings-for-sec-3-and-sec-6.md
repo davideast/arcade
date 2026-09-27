@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: Yacht rules lint (yachtCreate)
-status: open
+status: fixed
+fixed_in: dbc35150 (#780, cb0f5041)
 ---
 ## Summary
 
@@ -65,3 +66,9 @@ Failing test, next to the "transitive auth resolution (SEC-3 bug fix)" cases in 
 ## Workaround in pyric-games
 
 `yachtCreate()` in `games/yacht/yacht.rules` reads `request.resource.data` directly instead of through a let. The Yacht update functions bind `before` and `after` with lets too, but they are not flagged: each read `request.auth` directly, and each update rule in `app/firestore.modules.rules` starts with `request.resource.data.lastAction == ...`, which SEC-6 sees.
+
+## Fixed
+
+Fixed by Pyric PR #780, merged as cb0f5041, and verified on Pyric main dbc35150 (vendored as local-6). Lint now follows a called function's let bindings for SEC-3, SEC-6 and QUA-4. `bun bugs/repro/0010.ts` exits 0: none of the three rulesets (direct, data through a let, auth through a let) reports SEC-3 or SEC-6.
+
+Workaround dropped: `yachtCreate()` in `games/yacht/yacht.rules` and `sokobanScore()` in `games/sokoban/sokoban.rules` read `request.resource.data` through their let `d` again, and `bun run lint` passes.

@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Sokoban (the upload rule compared the score's object with 'sokoban/' + uid + '/' + level + '/' + file)
-status: open
+status: fixed
+fixed_in: dbc35150 (#764, 8d7163d4)
 ---
 ## Summary
 
@@ -30,9 +31,11 @@ Alice uploads `users/alice/a.txt` under `match /users/{uid}/{file}` with one `al
 'users/' + uid + '/' + file == 'users/alice/a.txt': ALLOW
 'a' + 'b' != 'ab': DENY
 'users/' + request.auth.uid != 'users/alice': DENY
-[1] + [2] == [1, 2]: ALLOW
+[1] + [2] == [1, 2]: DENY
 1 + 2 == 3: ALLOW
 ```
+
+A production capture through the Rules Test API, taken while fixing this bug, shows Storage rules have no `list + list`: it fails with "Unsupported operation error. Received: list + list.", as does `+` on a string and a number, and the error denies. The list case expects DENY for that reason.
 
 ## Actual
 
@@ -41,7 +44,7 @@ Alice uploads `users/alice/a.txt` under `match /users/{uid}/{file}` with one `al
 'users/' + uid + '/' + file == 'users/alice/a.txt': DENY (expected ALLOW)
 'a' + 'b' != 'ab': ALLOW (expected DENY)
 'users/' + request.auth.uid != 'users/alice': ALLOW (expected DENY)
-[1] + [2] == [1, 2]: DENY (expected ALLOW)
+[1] + [2] == [1, 2]: DENY (expected DENY)
 1 + 2 == 3: ALLOW (expected ALLOW)
 ```
 
@@ -53,8 +56,14 @@ Confirmed by reading. `packages/pyric/src/storage/sandbox/rules-evaluator.ts:391
 
 ## Suggested fix and failing test
 
-In the Storage evaluator's `+`, concatenate two strings and two lists, keep numeric addition, and return a `RuleError` (absorbable, so it denies) for any other pair, matching the Firestore evaluator's CEL overloads. More generally, `numOp` and the other operator helpers should return a `RuleError` rather than `undefined` for operand types they don't support, so no operator can produce a value that silently compares unequal. Failing test first: the repro's six cases in `packages/pyric/test/storage/sandbox/rules-evaluator.test.ts`, and a Storage corpus scenario with `+` on strings and lists captured against the Rules Test API so the language inventory gains a row with evidence.
+In the Storage evaluator's `+`, concatenate two strings, keep numeric addition, and return a `RuleError` (absorbable, so it denies) for any other pair, including two lists: production's Storage `+` overloads are int, float, string, and the duration and timestamp pairs. More generally, `numOp` and the other operator helpers should return a `RuleError` rather than `undefined` for operand types they don't support, so no operator can produce a value that silently compares unequal. Failing test first: the repro's six cases in `packages/pyric/test/storage/sandbox/rules-evaluator.test.ts`, and a Storage corpus scenario with `+` on strings and lists captured against the Rules Test API so the language inventory gains a row with evidence.
 
 ## Workaround in pyric-games
 
 `app/storage.rules` splits strings instead of building them: the upload rule compares `score.object.split('/')[3] == file` and reads the counts from `file.split('[-.]')`, with the Firestore rules (which concatenate correctly) fixing the object's full path.
+
+## Fixed
+
+Fixed by Pyric PR #764, merged as 8d7163d4, and verified on Pyric main dbc35150 (vendored as local-6). Storage `+` now concatenates two strings, adds numbers, and errors (so denies) on any other pair. `bun bugs/repro/0019.ts` exits 0: every case matches its expected verdict.
+
+Workaround dropped: with 0020 and 0021, `app/storage.rules` no longer splits strings. Sokoban's upload rule compares `request.resource.name == score.object`.

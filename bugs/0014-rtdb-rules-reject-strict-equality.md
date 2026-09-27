@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey (checking which RTDB operators the rules grammar accepts before writing the rules)
-status: open
+status: fixed
+fixed_in: dbc35150 (#781, c12c11f0)
 ---
 ## Summary
 
@@ -46,3 +47,9 @@ Add `Comparison "===" Additive -- strictEq` and `Comparison "!==" Additive -- st
 ## Workaround in pyric-games
 
 Air Hockey's rules are written with the constraint builders, which emit `==` and `!=`.
+
+## Fixed
+
+Fixed by Pyric PR #781, merged as c12c11f0, and verified on Pyric main dbc35150 (vendored as local-6). RTDB rule expressions now parse and evaluate `===` and `!==`. `bun bugs/repro/0014.ts` exits 0: all three rules allow the owner in the sandbox and in `simulate`.
+
+Nothing to drop in the arcade: the constraint builders emit `==` and `!=`, which compare without converting types, as production does (0022).

@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey RTDB rules (every host frame was denied by the score's one-goal rule)
-status: open
+status: fixed
+fixed_in: dbc35150 (#784, c1e09606)
 ---
 ## Summary
 
@@ -46,3 +47,9 @@ Validate only the nodes on the write paths and the descendants of each written v
 ## Workaround in pyric-games
 
 Air Hockey's rules keep every value check in `.write` (a node's `.write` is evaluated with the merged value for writes at or below it, and nothing above grants) and keep only type checks and `$other: false` in `.validate`, which pass on unchanged values. Before that, `score`, `meta` and the puck's tick carried an "unchanged" branch so their `.validate` passed when a sibling was written.
+
+## Fixed
+
+Fixed by Pyric PR #784, merged as c1e09606, and verified on Pyric main dbc35150 (vendored as local-6). A write now evaluates the `.validate` rules on its path and in the written value, not those of unchanged siblings. `bun bugs/repro/0012.ts` exits 0: the write to `/rooms/r1/title` is allowed by the sandbox and by `simulate`.
+
+Workaround dropped: Air Hockey's value checks are back in `.validate` (`games/air-hockey/src/rtdb-rules.ts`): the frame's bounds, speed and tick, the score's one-goal step, the guest mallet's box, and meta's shape. Each `.write` keeps who may write and when, and meta's state transitions.
