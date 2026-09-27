@@ -566,65 +566,71 @@ async function finishCheats(m: Match, score: { host: number; guest: number }): P
   await m.deniedFs('the result with an extra field', 'host', withData({ note: 'gg' }));
 }
 
+/**
+ * Play one match to 7 and record its result. The late match is seeded at 6
+ * to 6 with the puck served to the host and the guest parked in a corner, so
+ * the host wins with its first shot; it runs the lobby and opening cheats and
+ * cheats before every write. The full match (seed 36, which the guest wins)
+ * runs cheats at every goal and every CHEAT_EVERY-th write, then records a
+ * final score that isn't the live one, which the rules allow and the clients
+ * flag.
+ */
+async function playMatch(late: boolean): Promise<Match> {
+  const m = new Match(late ? 'late' : 'full');
+  await m.createAndJoin(late);
+  await m.startLive(initialWorld(), late);
+  let start: World | undefined;
+  if (late) {
+    start = { ...initialWorld(), puck: servedPuck('host'), guest: { x: 8, y: 16 }, score: { host: 6, guest: 6 }, tick: 3000 };
+    // setData replaces the whole tree, so it gets the whole tree back with the seeded match.
+    const tree = m.tree() as { airhockey: Record<string, Record<string, Data>> };
+    tree.airhockey[m.id][HOST] = { ...tree.airhockey[m.id][HOST], frame: frameOf(start), score: start.score };
+    rtdbSandbox.setData(m.admin, { '/': tree as unknown as Data });
+    m.sandbox.admin.setDocument(m.path, { ...m.stored(), score: start.score });
+  }
+  const { world, frames } = await playToSeven(m, late
+    ? { seed: 1, cheatEvery: 1, start, guestAt: { x: 8, y: 16 } }
+    : { seed: 36, cheatEvery: CHEAT_EVERY });
+  const label = late ? 'late match' : 'full match';
+  if (!winner(world.score)) return m;
+  const live = m.live();
+  if (live?.meta?.status !== 'over' || live.meta.winner !== winner(world.score)) m.failures.push(`${label}: live match not closed (${JSON.stringify(live?.meta)})`);
+  if (JSON.stringify(live?.score) !== JSON.stringify(world.score)) m.failures.push(`${label}: live score ${JSON.stringify(live?.score)} is not ${JSON.stringify(world.score)}`);
+  await afterEnd(m, world, `${label} after 7 goals`);
+  await finishCheats(m, world.score);
+  if (late) {
+    await m.allowedFs('the host records the result', 'host', finishOps(m.id, world.score));
+    if (!resultMatchesLive(m.stored(), m.live())) m.failures.push('the real result was flagged');
+  } else {
+    // A result with a legal shape but not the live score: the rules can't tell, the clients can.
+    const other = winner(world.score) === 'host' ? 'guest' : 'host';
+    const forged = { ...world.score, [other]: world.score[other] === 0 ? 1 : 0 };
+    await m.allowedFs('the host records a score that is not the live one (rules cannot read the live match)', 'host', finishOps(m.id, forged));
+    if (resultMatchesLive(m.stored(), m.live())) m.failures.push('a forged final score was not flagged');
+  }
+  await m.deniedFs('a forfeit after the result', 'guest', forfeitOps(m.id, 'guest', { host: 0, guest: 0 }));
+  await m.deniedFs('resign after the result', 'guest', [{ type: 'update', path: m.path, data: { status: 'resigned', winner: 'host' } }]);
+  console.log(`${label}: ${world.score.host} to ${world.score.guest} at tick ${world.tick}, ${frames} frames; `
+    + `simulate agreed with the sandbox on ${m.simulated - m.disagreements.length - m.noRule} of ${m.simulated} cases, `
+    + `${m.noRule} denials it reports as unsupported (bugs/0018)`);
+  return m;
+}
+
 describe('Air Hockey Security Rules', () => {
   test('database.rules.json is generated from the TypeScript rules', () => {
     expect(databaseRulesText).toBe(renderRules());
   });
 
-  test('a match to 7, and a late match the host wins 7 to 6: every real write allowed, cheats denied, results recorded', async () => {
-    const failures: string[] = [];
-    const disagreements: string[] = [];
-    let simulated = 0;
-    let noRule = 0;
-    for (const late of [false, true]) {
-      const m = new Match(late ? 'late' : 'full');
-      await m.createAndJoin(!late);
-      await m.startLive(initialWorld(), !late);
-      let start: World | undefined;
-      if (late) {
-        // Seed both databases at 6 to 6, the puck served to the host and the guest parked in a corner.
-        start = { ...initialWorld(), puck: servedPuck('host'), guest: { x: 8, y: 16 }, score: { host: 6, guest: 6 }, tick: 3000 };
-        // setData replaces the whole tree, so it gets the whole tree back with the seeded match.
-        const tree = m.tree() as { airhockey: Record<string, Record<string, Data>> };
-        tree.airhockey[m.id][HOST] = { ...tree.airhockey[m.id][HOST], frame: frameOf(start), score: start.score };
-        rtdbSandbox.setData(m.admin, { '/': tree as unknown as Data });
-        m.sandbox.admin.setDocument(m.path, { ...m.stored(), score: start.score });
-      }
-      // Seed 36 is a full match the guest wins; the late match's host wins with its first shot.
-      const { world, frames } = await playToSeven(m, late
-        ? { seed: 1, cheatEvery: 1, start, guestAt: { x: 8, y: 16 } }
-        : { seed: 36, cheatEvery: CHEAT_EVERY });
-      const label = late ? 'late match' : 'full match';
-      if (!winner(world.score)) {
-        failures.push(...m.failures);
-        continue;
-      }
-      const live = m.live();
-      if (live?.meta?.status !== 'over' || live.meta.winner !== winner(world.score)) m.failures.push(`${label}: live match not closed (${JSON.stringify(live?.meta)})`);
-      if (JSON.stringify(live?.score) !== JSON.stringify(world.score)) m.failures.push(`${label}: live score ${JSON.stringify(live?.score)} is not ${JSON.stringify(world.score)}`);
-      await afterEnd(m, world, `${label} after 7 goals`);
-      await finishCheats(m, world.score);
-      if (late) {
-        await m.allowedFs('the host records the result', 'host', finishOps(m.id, world.score));
-        if (!resultMatchesLive(m.stored(), m.live())) m.failures.push('the real result was flagged');
-      } else {
-        // A result with a legal shape but not the live score: the rules can't tell, the clients can.
-        const other = winner(world.score) === 'host' ? 'guest' : 'host';
-        const forged = { ...world.score, [other]: world.score[other] === 0 ? 1 : 0 };
-        await m.allowedFs('the host records a score that is not the live one (rules cannot read the live match)', 'host', finishOps(m.id, forged));
-        if (resultMatchesLive(m.stored(), m.live())) m.failures.push('a forged final score was not flagged');
-      }
-      await m.deniedFs('a forfeit after the result', 'guest', forfeitOps(m.id, 'guest', { host: 0, guest: 0 }));
-      await m.deniedFs('resign after the result', 'guest', [{ type: 'update', path: m.path, data: { status: 'resigned', winner: 'host' } }]);
-      console.log(`${label}: ${world.score.host} to ${world.score.guest} at tick ${world.tick}, ${frames} frames`);
-      failures.push(...m.failures);
-      disagreements.push(...m.disagreements);
-      simulated += m.simulated;
-      noRule += m.noRule;
-    }
-    console.log(`simulate agreed with the sandbox on ${simulated - disagreements.length - noRule} of ${simulated} cases; ${noRule} denials it reports as unsupported (bugs/0018)`);
-    expect(failures.slice(0, 40)).toEqual([]);
-    expect(disagreements.slice(0, 20)).toEqual([]);
+  test('a late match the host wins 7 to 6: every real write allowed, cheats before every write, the result recorded', async () => {
+    const m = await playMatch(true);
+    expect(m.failures.slice(0, 40)).toEqual([]);
+    expect(m.disagreements.slice(0, 20)).toEqual([]);
+  }, 120_000);
+
+  test('a full match to 7: every real write allowed, cheats at every goal and every 250th write, a forged final score flagged', async () => {
+    const m = await playMatch(false);
+    expect(m.failures.slice(0, 40)).toEqual([]);
+    expect(m.disagreements.slice(0, 20)).toEqual([]);
   }, 300_000);
 
   test('a player who leaves forfeits; a forfeit while they are present is denied live and flagged', async () => {
