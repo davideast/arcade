@@ -21,6 +21,9 @@ import {
 } from '../games/battleship/battleship';
 import { chessCreate, chessJoin, chessCancel, chessMove, chessResign } from '../games/chess/chess';
 import { checkersCreate, checkersJoin, checkersCancel, checkersMove, checkersResign } from '../games/checkers/checkers';
+import {
+  yachtCreate, yachtJoin, yachtCancel, yachtStart, yachtCommit, yachtNonce, yachtReveal, yachtScore
+} from '../games/yacht/yacht';
 import { rematchCreate } from '../packages/turn-net/rematch';
 
 service cloud.firestore {
@@ -101,6 +104,17 @@ service cloud.firestore {
       allow update: if resource.data.status == 'waiting' && (checkersJoin());
       allow update: if resource.data.status == 'playing' && request.resource.data.status in ['playing', 'won'] && (checkersMove());
       allow update: if request.resource.data.status == 'resigned' && (checkersResign());
+    }
+    match /yacht/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if yachtCreate();
+      allow delete: if yachtCancel();
+      allow update: if request.resource.data.lastAction == 'join' && (yachtJoin());
+      allow update: if request.resource.data.lastAction == 'start' && (yachtStart());
+      allow update: if request.resource.data.lastAction == 'commit' && (yachtCommit());
+      allow update: if request.resource.data.lastAction == 'nonce' && (yachtNonce());
+      allow update: if request.resource.data.lastAction == 'reveal' && (yachtReveal());
+      allow update: if request.resource.data.lastAction == 'score' && (yachtScore());
     }
     match /rematches/{game}/matches/{matchId} {
       allow read: if request.auth != null;
