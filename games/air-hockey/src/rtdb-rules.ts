@@ -23,17 +23,13 @@
  *     WIN_SCORE, 'forfeit' by a player while the other's presence is false,
  *     or 'resigned' naming the other player the winner.
  *
- * Where the checks live: each node's `.write` holds its access check and
- * every check on its value (bounds, transitions, cross-field checks), and
- * each field's `.validate` holds only its type, with `$other` rejecting any
- * other field. Nothing above these nodes grants a write, so a `.write` here
- * is always evaluated, on the merged value at its node, for a write at the
- * node or below it. Keeping the value checks out of `.validate` keeps them
- * off writes to other nodes: Pyric's sandbox evaluates the `.validate`
- * rules of unchanged sibling nodes on every write (bugs/0012) and re-parses
- * each expression it evaluates (bugs/0013), which made a host frame cost
- * about 48 ms with the value checks in `.validate`. For the same reason the
- * host's frame is one node, written with one path.
+ * Where the checks live: each node's `.write` holds who may write it and
+ * when (and, for meta, the state transitions), and its `.validate` holds the
+ * checks on its value: bounds, the tick and score steps, and meta's shape.
+ * Each field's `.validate` holds its type, with `$other` rejecting any other
+ * field. A write evaluates the `.validate` rules on its path and in the
+ * written value, so a check on one node never runs for a write to a sibling.
+ * The host's frame is one node, written with one path.
  */
 import {
   AUTH_UID,
@@ -188,11 +184,13 @@ export const airHockeyRtdbDefinition = defineRtdbRules({
       read: all(authenticated(), any(ownPath('$host'), eq(dataVal('meta/guest'), AUTH_UID))),
       children: {
         '/meta': {
-          write: all(authenticated(), newDataExists(), metaShape, any(metaCreate, metaEnd)),
+          write: all(authenticated(), newDataExists(), any(metaCreate, metaEnd)),
+          validate: metaShape,
           children: only({ guest: 'String', status: 'String', winner: 'String' }),
         },
         '/frame': {
-          write: all(hostLive, frameValue),
+          write: hostLive,
+          validate: frameValue,
           children: {
             '/puck': { children: only({ x: 'Number', y: 'Number', vx: 'Number', vy: 'Number', t: 'Number' }) },
             '/host': { children: xy },
@@ -200,9 +198,14 @@ export const airHockeyRtdbDefinition = defineRtdbRules({
             '/$other': { validate: deny() },
           },
         },
-        '/guestMallet': { write: all(isGuestAt(1), newDataExists(), liveAt(1), malletIn('guest')), children: xy },
+        '/guestMallet': {
+          write: all(isGuestAt(1), newDataExists(), liveAt(1)),
+          validate: malletIn('guest'),
+          children: xy,
+        },
         '/score': {
-          write: all(hostLive, scoreStep),
+          write: hostLive,
+          validate: scoreStep,
           children: only({ host: 'Number', guest: 'Number' }),
         },
         '/presence/$side': {
