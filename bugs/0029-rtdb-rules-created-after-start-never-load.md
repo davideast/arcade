@@ -5,7 +5,8 @@ severity: major
 package: "@pyric/cli"
 pyric_commit: 9c125203
 found_in: playing Air Hockey on a dev server started before the branch added app/database.rules.json
-status: open
+status: fixed
+fixed_in: dbc35150 (#796, f18012b5)
 ---
 ## Summary
 
@@ -45,3 +46,9 @@ Watch the path the rules would load from (`firebase.json`'s `database.rules`, or
 ## Workaround in pyric-games
 
 Restart the dev server after switching to a branch that adds `app/database.rules.json`, or after the first `bun run rtdb:rules`.
+
+## Fixed
+
+Fixed by Pyric PR #796, merged as f18012b5, and verified on Pyric main dbc35150 (vendored as local-6). Dev servers now load a rules file created after startup. `bash bugs/repro/0029.sh` exits 0: creating the file after startup reloads the RTDB rules.
+
+Nothing to drop in the arcade: the workaround was to restart the dev server.

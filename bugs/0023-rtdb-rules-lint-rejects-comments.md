@@ -5,7 +5,8 @@ severity: minor
 package: "@pyric/cli"
 pyric_commit: 9c125203
 found_in: reviewing the fix for 0015
-status: open
+status: fixed
+fixed_in: dbc35150 (#794, 3b08ebcf)
 ---
 ## Summary
 
@@ -45,3 +46,9 @@ Parse RTDB rules text in one place with `stripJsonComments` and use it for lint,
 ## Workaround in pyric-games
 
 Keep `database.rules.json` free of comments. Air Hockey generates the file from TypeScript with `JSON.stringify`, so it has none.
+
+## Fixed
+
+Fixed by Pyric PR #794, merged as 3b08ebcf, and verified on Pyric main dbc35150 (vendored as local-6). RTDB `rules lint`, `rules simulate` and `rules set` now accept a rules file with comments. `bun bugs/repro/0023.ts` exits 0: `database rules validate` and `rules lint --service database` both exit 0 with no errors.
+
+Nothing to drop in the arcade: `app/database.rules.json` is generated with `JSON.stringify` and has no comments.

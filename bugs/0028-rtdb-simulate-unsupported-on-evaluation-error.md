@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: fixing 0018
-status: open
+status: fixed
+fixed_in: dbc35150 (#795, ca4db8de)
 ---
 ## Summary
 
@@ -44,3 +45,9 @@ Treat an evaluation error in a rule as that rule failing, which denies, as the s
 ## Workaround in pyric-games
 
 Check the type before calling a method (`newData.isString() && newData.val().toUpperCase() == 'A'`). Air Hockey's rules already check types first.
+
+## Fixed
+
+Fixed by Pyric PR #795, merged as ca4db8de, and verified on Pyric main dbc35150 (vendored as local-6). An RTDB rule that errors at evaluation now fails as that rule in `simulate`. `bun bugs/repro/0028.ts` exits 0: the sandbox and `simulate` both deny.
+
+Nothing to drop in the arcade: Air Hockey's rules check types before calling a method.

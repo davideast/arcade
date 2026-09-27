@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: fixing 0020 (a Storage rules scenario that needed a bytes value)
-status: open
+status: fixed
+fixed_in: dbc35150 (#797, fa5c99be)
 ---
 ## Summary
 
@@ -46,3 +47,9 @@ Add a bytes literal to the grammar with the string escapes, evaluate it to the B
 ## Workaround in pyric-games
 
 Build bytes with `'...'.toUtf8()`. No arcade game uses a bytes literal.
+
+## Fixed
+
+Fixed by Pyric PR #797, merged as fa5c99be, and verified on Pyric main dbc35150 (vendored as local-6). The rules grammar now has the bytes literal. `bun bugs/repro/0027.ts` exits 0: all three rules parse.
+
+Nothing to drop in the arcade: no game uses a bytes literal.

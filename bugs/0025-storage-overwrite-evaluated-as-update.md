@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: fixing 0021 (a production capture of request.resource on real client writes)
-status: open
+status: fixed
+fixed_in: dbc35150 (#792, eb498e87)
 ---
 ## Summary
 
@@ -45,3 +46,9 @@ Evaluate every client upload as `create`, and keep `resource` bound to the store
 ## Workaround in pyric-games
 
 Sokoban's move lists are create-only by design (each solve has a new object name), so the game never overwrites. A rule that must allow overwrites can grant them under `create` with a check on `resource == null` or on the stored object.
+
+## Fixed
+
+Fixed by Pyric PR #792, merged as eb498e87, and verified on Pyric main dbc35150 (vendored as local-6). A client upload is now evaluated as `create`, with `resource` bound to the stored object when one exists. `bun bugs/repro/0025.ts` exits 0: both uploads are allowed.
+
+There was no workaround to drop, but the fix showed that the Sokoban test expected production to deny an owner's upload over their own object. Production allows it as a create, and a rule can't test that the object is absent: `resource == null` errors when it is. The test now expects the owner's upload over their own object to be allowed, a move list of the same length that solves nothing to be flagged by the replay, and a metadata update to be denied. The note in `app/storage.rules` says so.

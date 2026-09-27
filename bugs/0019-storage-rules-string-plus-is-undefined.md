@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Sokoban (the upload rule compared the score's object with 'sokoban/' + uid + '/' + level + '/' + file)
-status: open
+status: fixed
+fixed_in: dbc35150 (#764, 8d7163d4)
 ---
 ## Summary
 
@@ -60,3 +61,9 @@ In the Storage evaluator's `+`, concatenate two strings, keep numeric addition, 
 ## Workaround in pyric-games
 
 `app/storage.rules` splits strings instead of building them: the upload rule compares `score.object.split('/')[3] == file` and reads the counts from `file.split('[-.]')`, with the Firestore rules (which concatenate correctly) fixing the object's full path.
+
+## Fixed
+
+Fixed by Pyric PR #764, merged as 8d7163d4, and verified on Pyric main dbc35150 (vendored as local-6). Storage `+` now concatenates two strings, adds numbers, and errors (so denies) on any other pair. `bun bugs/repro/0019.ts` exits 0: every case matches its expected verdict.
+
+Workaround dropped: with 0020 and 0021, `app/storage.rules` no longer splits strings. Sokoban's upload rule compares `request.resource.name == score.object`.

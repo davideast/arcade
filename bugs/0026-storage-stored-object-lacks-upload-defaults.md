@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: fixing 0021 (a production capture of request.resource on real client writes)
-status: open
+status: fixed
+fixed_in: dbc35150 (#792, eb498e87)
 ---
 ## Summary
 
@@ -48,3 +49,9 @@ Apply the same defaults when the upload's record is stored (one helper shared wi
 ## Workaround in pyric-games
 
 None needed: the arcade's Storage rules don't read either field.
+
+## Fixed
+
+Fixed by Pyric PR #792, merged as eb498e87, and verified on Pyric main dbc35150 (vendored as local-6). Storage now stores an upload with production's `contentDisposition` and `contentEncoding` defaults. `bun bugs/repro/0026.ts` exits 0: the stored values match production and the metadata update is allowed.
+
+Nothing to drop in the arcade: its Storage rules don't read either field.

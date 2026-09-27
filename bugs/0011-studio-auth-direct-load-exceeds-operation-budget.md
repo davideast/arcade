@@ -5,7 +5,8 @@ severity: major
 package: "@pyric/studio"
 pyric_commit: 9c125203
 found_in: arcade Studio check under pyric({ hosted: true }) on local-5, opening /__pyric/ui/auth/ with 19 anonymous users
-status: open
+status: fixed
+fixed_in: dbc35150 (#785, 28d85d1e)
 ---
 ## Summary
 
@@ -80,3 +81,9 @@ Failing tests first:
 Open another Studio tab first (confirmed with Firestore), then click Auth. The header, mounted on every tab, keeps the event feed open across tabs, so the Auth page skips the history replay and loads normally. Reloading the Auth page itself does not help; it replays the history again.
 
 Restarting the dev server also clears it for a while: the hosted observation history lives only in the server process (see 0009's workaround), so a fresh server starts with an empty history and a direct load works until a few hundred events, with sign-ins among the later ones, have accumulated. Documents and users persist in `app/.pyric/state`. Nothing in the arcade's code is involved, so there is no code workaround to apply here.
+
+## Fixed
+
+Fixed by Pyric PR #785, merged as 28d85d1e, and verified on Pyric main dbc35150 (vendored as local-6). Studio now coalesces the feed-driven `listRootCollections` and `listUsers` reads, and a successful user list clears the Auth error. `bash bugs/repro/0011.sh` exits 0: a direct load of the Auth page sends one `presence.register`, two `listRootCollections` and two `auth.listUsers` operations, with at most 3 pending at once, and the users table shows after Firestore then Auth.
+
+Nothing to drop in the arcade: the workaround was to open another Studio tab first or restart the dev server.

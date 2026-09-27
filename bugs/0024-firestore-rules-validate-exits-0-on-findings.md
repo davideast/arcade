@@ -5,7 +5,8 @@ severity: minor
 package: "@pyric/cli"
 pyric_commit: 9c125203
 found_in: reviewing the fix for 0015
-status: open
+status: fixed
+fixed_in: dbc35150 (#786, 24b1521c)
 ---
 ## Summary
 
@@ -44,3 +45,9 @@ Exit 2 when any finding has the failing severity, matching the Realtime Database
 ## Workaround in pyric-games
 
 Gate on `bun run lint` (tools/lint-rules.ts), which fails on lint errors, instead of on this command's exit code.
+
+## Fixed
+
+Fixed by Pyric PR #786, merged as 24b1521c, and verified on Pyric main dbc35150 (vendored as local-6). `pyric firestore rules validate` now exits 2 when a finding has severity critical or high. `bun bugs/repro/0024.ts` exits 0: the command exits 2 on SEM-4.
+
+Nothing to drop in the arcade: `bun run lint` stays the gate.

@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: fixing 0014 (a production capture of strict and loose equality in RTDB rules)
-status: open
+status: fixed
+fixed_in: dbc35150 (#793, 1b9ca4b8)
 ---
 ## Summary
 
@@ -46,3 +47,9 @@ Evaluate `==` and `!=` without type conversion (the same comparison as `===` and
 ## Workaround in pyric-games
 
 Compare same-typed values only: check the type first (`newData.isString()`, `newData.isNumber()`, `newData.isBoolean()`) before an equality. Air Hockey's rules already check types first, so the game does not depend on this.
+
+## Fixed
+
+Fixed by Pyric PR #793, merged as 1b9ca4b8, and verified on Pyric main dbc35150 (vendored as local-6). RTDB `==` and `!=` now compare without converting types, as production does. `bun bugs/repro/0022.ts` exits 0: the mixed-type comparisons deny and the same-type one allows, in the sandbox and in `simulate`.
+
+Nothing to drop in the arcade: Air Hockey's rules check types before comparing.

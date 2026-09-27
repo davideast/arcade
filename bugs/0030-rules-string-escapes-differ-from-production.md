@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: fa5c99be
 found_in: fixing 0027 (bytes literal probes through the Rules Test API)
-status: open
+status: fixed
+fixed_in: dbc35150 (#798, ac639e30)
 ---
 ## Summary
 
@@ -47,3 +48,9 @@ Capture string escapes through the Rules Test API as a corpus scenario: `\x`, `\
 ## Workaround in pyric-games
 
 None needed. No arcade ruleset uses these escapes.
+
+## Fixed
+
+Fixed by Pyric PR #798, merged as ac639e30, and verified on Pyric main dbc35150 (vendored as local-6). Rules string literals now accept the `\x`, `\u` and octal escapes and reject `\/`, as production does. `bun bugs/repro/0030.ts` exits 0: the three escapes parse and `'\/'` reports PARSE_ERROR.
+
+Nothing to drop in the arcade: no ruleset uses these escapes.

@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey RTDB rules lint (meta's .write compares presence to false)
-status: open
+status: fixed
+fixed_in: dbc35150 (#783, 2fe0d4c4)
 ---
 ## Summary
 
@@ -42,3 +43,9 @@ Report HARDCODED_* only when the expression's top node is the literal; map PARSE
 ## Workaround in pyric-games
 
 The Air Hockey rules unit test asserts the exact list of warnings, with the two false positives on meta's `.write` noted there.
+
+## Fixed
+
+Fixed by Pyric PR #783, merged as 2fe0d4c4, and verified on Pyric main dbc35150 (vendored as local-6). RTDB lint now reports a hardcoded rule only when the whole expression is a literal, and each issue names its origin and rule. `bun bugs/repro/0016.ts` exits 0: a rule comparing a value to `false` has no issues, `false` read and write rules report HARDCODED_FALSE with origin lint, and a rule that does not parse reports PARSE_ERROR with origin parse.
+
+Workaround dropped: the Air Hockey unit test no longer lists the two false positives on meta's `.write`. Its expected warnings are the root's `false` `.read` and `.write`.

@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Sokoban (the upload rule ties the uploaded object to the path the score document names)
-status: open
+status: fixed
+fixed_in: dbc35150 (#787, a7c6ac4a)
 ---
 ## Summary
 
@@ -60,3 +61,9 @@ Capture first: add a Storage corpus scenario under `packages/conformance/rules-c
 ## Workaround in pyric-games
 
 `app/storage.rules` reads the object's identity from the match path instead of `request.resource`. `match /sokoban/{uid}/{level}/{file}` calls `sokobanUpload(uid, level, file)`, which checks `request.auth.uid == uid`, `meta.level == level`, and `score.object.split('/')[3] == file`, where `score` is the owner's score document for that level read with `firestore.get()`. The Firestore rules fix `score.object` to `sokoban/{uid}/{level}/{solve}-{moves}-{pushes}.txt`, so the path variables together with that check stand in for `request.resource.name == score.object`. The rule never reads `request.resource.name` or `request.resource.bucket`.
+
+## Fixed
+
+Fixed by Pyric PR #787, merged as a7c6ac4a, and verified on Pyric main dbc35150 (vendored as local-6). `request.resource` in Storage rules now has `name` and `bucket`. `bun bugs/repro/0021.ts` exits 0: all five cases match their expected verdicts.
+
+Workaround dropped: Sokoban's upload rule checks `request.resource.name == score.object` instead of the file name from the match path, and `sokobanUpload` no longer takes the file.

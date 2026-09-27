@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey (a host frame cost about 48 ms in the sandbox)
-status: open
+status: fixed
+fixed_in: dbc35150 (#784, c1e09606)
 ---
 ## Summary
 
@@ -48,3 +49,9 @@ Memoize the grammar match by expression text (a `Map<string, MatchResult>` in `e
 ## Workaround in pyric-games
 
 Air Hockey writes the host's frame as one node (one path, not three) and keeps long checks in `.write` rules only (see 0012), which brought a frame to about 6 ms. The host writes at 20 frames a second.
+
+## Fixed
+
+Fixed by Pyric PR #784, merged as c1e09606, and verified on Pyric main dbc35150 (vendored as local-6). Each RTDB rule expression is now parsed once and reused. `bun bugs/repro/0013.ts` exits 0: 0.055 ms per 1-term write and 0.262 ms per 40-term write (4.7x, the 39 extra comparisons), against 2.510 ms to parse the 40-term rule once.
+
+Nothing to drop in the arcade: the host's frame stays one node, written with one path, and the value checks moved back to `.validate` with 0012.

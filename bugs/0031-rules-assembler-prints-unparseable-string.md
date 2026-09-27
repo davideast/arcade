@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: ac639e30
 found_in: fixing 0030 (checking printers for escape assumptions)
-status: open
+status: fixed
+fixed_in: dbc35150 (#799, dbc35150)
 ---
 ## Summary
 
@@ -45,3 +46,9 @@ Print the literal so it parses to the same value: keep a double-quoted `raw` as 
 ## Workaround in pyric-games
 
 None needed. No arcade ruleset has an apostrophe in a double-quoted string.
+
+## Fixed
+
+Fixed by Pyric PR #799, merged as dbc35150, and verified on Pyric main dbc35150 (vendored as local-6). The rules assembler now prints string literals in their source quotes. `bun bugs/repro/0031.ts` exits 0: it prints `"it's"` in double quotes and the printed ruleset parses.
+
+Nothing to drop in the arcade: no ruleset has an apostrophe in a double-quoted string.

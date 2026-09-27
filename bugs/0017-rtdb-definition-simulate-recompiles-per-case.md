@@ -5,7 +5,8 @@ severity: minor
 package: pyric
 pyric_commit: 9c125203
 found_in: Air Hockey rules test (about 72 ms per simulated case)
-status: open
+status: fixed
+fixed_in: dbc35150 (#788, 2a4648ba)
 ---
 ## Summary
 
@@ -43,3 +44,9 @@ Compile the definition once, lazily, and reuse it (the definition is immutable o
 ## Workaround in pyric-games
 
 The Air Hockey sandbox test cross-checks through `rtdbRules(json)` on the generated file; the unit test runs its 28 cases through the definition handle.
+
+## Fixed
+
+Fixed by Pyric PR #788, merged as 2a4648ba, and verified on Pyric main dbc35150 (vendored as local-6). `simulate` on a TypeScript RTDB definition now compiles the definition once. `bun bugs/repro/0017.ts` exits 0: 1.79 ms per case through the definition handle against 1.64 ms through the JSON handle.
+
+Nothing to drop in the arcade: the sandbox test cross-checks through the generated JSON, which is the file the sandbox runs.
