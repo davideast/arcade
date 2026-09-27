@@ -37,7 +37,8 @@ function sokobanScore(level, uid) {
   let least = sokobanLevels()[level];
   return request.auth != null && request.auth.uid == uid
     && level in sokobanLevels()
-    && d.keys().hasOnly(['uid', 'level', 'moves', 'pushes', 'solve', 'object', 'createdAt'])
+    // Read without the let: lint doesn't follow let bindings (bugs/0010).
+    && request.resource.data.keys().hasOnly(['uid', 'level', 'moves', 'pushes', 'solve', 'object', 'createdAt'])
     && d.uid == uid
     && d.level == level
     && d.moves is int
