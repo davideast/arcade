@@ -14,9 +14,9 @@ rules_version = '2';
 //   - with exactly the metadata keys level, moves and pushes, the level
 //     matching the path;
 //   - when the owner's score document for that level names this object, the
-//     file name repeats the score's solve id and the metadata's counts (so the
-//     metadata carries the counts the Firestore rules checked), and the size
-//     equals the score's move count.
+//     metadata's counts equal the score's (so the metadata carries the counts
+//     the Firestore rules checked), and the size equals the score's move
+//     count.
 // Only create is granted: an object is never replaced or deleted, so a move
 // list stays as it was scored. Anyone signed in may read, so every client can
 // replay every leaderboard entry.
@@ -29,28 +29,25 @@ service firebase.storage {
   match /b/{bucket}/o {
     // The Firestore rules fix the score's object to
     // `sokoban/{uid}/{level}/{solve}-{moves}-{pushes}.txt` for the score at
-    // `sokoban/{level}/scores/{uid}`, so its fourth segment names the file,
-    // and the file name's pieces are the solve id and the two counts. (The
-    // checks split strings rather than build them with `+`; see
-    // bugs/0019 for why.)
-    function sokobanUpload(uid, level, file) {
+    // `sokoban/{level}/scores/{uid}`, so an object named by the score carries
+    // the solve id and the two counts the Firestore rules checked.
+    function sokobanUpload(uid, level) {
       let meta = request.resource.metadata;
       let score = firestore.get(/databases/(default)/documents/sokoban/$(level)/scores/$(uid)).data;
-      let parts = file.split('[-.]');
       return request.auth != null && request.auth.uid == uid
         && request.resource.contentType == 'text/plain'
         && request.resource.size <= 2000
         && meta.keys().hasOnly(['level', 'moves', 'pushes'])
         && meta.level == level
-        && score.object.split('/')[3] == file
-        && parts[1] == meta.moves
-        && parts[2] == meta.pushes
+        && request.resource.name == score.object
+        && meta.moves == string(score.moves)
+        && meta.pushes == string(score.pushes)
         && request.resource.size == score.moves;
     }
 
     match /sokoban/{uid}/{level}/{file} {
       allow read: if request.auth != null;
-      allow create: if sokobanUpload(uid, level, file);
+      allow create: if sokobanUpload(uid, level);
     }
   }
 }
