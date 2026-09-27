@@ -9,6 +9,30 @@
  * The rules can't tell whether a player who passes had a move, or whether a
  * game marked over has moves left: a forged pass and a false end are
  * allowed, and the replay (`verifyMove`) must flag them.
+ *
+ * Removal probes (.overnight/probe-reversi.ts, 83 checks): 73 caught. The 10
+ * not caught are implied by other checks:
+ *   - `request.auth != null` in reversiMove, reversiPass and reversiResign:
+ *     each also compares request.auth.uid (isMyTurn, or the participant
+ *     check), which errors without auth, so the rule denies.
+ *   - reversiPass `isPlaying()`: the pass gate requires the stored status
+ *     after the write to be 'playing', and onlyFieldsChanged leaves status
+ *     out, so the status before was 'playing' too.
+ *   - reversiRay `n > 0` in the flip test: the ray is called only for a
+ *     reach other than 0 (reach 0 is checked inline), and r.hasOnly keeps
+ *     every reach at 0..7.
+ *   - reversiRay square 7 after-check: a reach of 7 never flips. Seven
+ *     opponent discs in a line from a square end at the board's edge, so the
+ *     square past them is off the board and v is the opponent's disc.
+ *   - Main gate `resource.data.status == 'waiting'` on join: validJoin
+ *     checks the match is waiting.
+ *   - Main gate `lastMove.at != ''` on a move: b[''] is not a key, so
+ *     reversiMove errors and denies.
+ *   - Main gates `lastMove.at == ''` and `status == 'playing'` on a pass:
+ *     reversiPass pins lastMove to {at: '', runs: []}, and its
+ *     onlyFieldsChanged with isPlaying keeps status 'playing'.
+ *   These gates stay: each makes the other transitions stop at one
+ *   comparison, which keeps a write's evaluation cost to its own rule.
  */
 import { describe, expect, test } from 'bun:test';
 import { initializeSandbox } from 'pyric/sandbox';
@@ -42,6 +66,7 @@ import {
   reversi,
   sideOfSeat,
   squareKey,
+  squareOfKey,
   toMap,
   verifyMove,
   type BoardMap,
@@ -146,7 +171,20 @@ class Match {
       await this.denied('join and add a disc', this.dbFor.guest, join({ guest: joined.guest, status: joined.status, board: { ...board, '11': 'l' } }));
     }
     await this.allowed('join', this.dbFor.guest, join({ guest: joined.guest, status: joined.status }));
-    if (withCheats) await this.denied('join a full match', this.stranger, join({ guest: 'stranger-uid' }));
+    if (withCheats) {
+      await this.denied('join a full match', this.stranger, join({ guest: 'stranger-uid' }));
+      const cancel = (db: Db) => db.doc(this.path).delete();
+      const before = JSON.stringify(this.stored());
+      for (const [label, db] of [['the host cancels a match in play', this.dbFor.host], ['the guest cancels a match in play', this.dbFor.guest]] as const) {
+        try {
+          await cancel(db);
+          this.failures.push(`allowed: ${label}`);
+        } catch {
+          // denied
+        }
+      }
+      if (JSON.stringify(this.stored()) !== before) this.failures.push('changed state: cancel a match in play');
+    }
   }
 }
 
@@ -158,15 +196,11 @@ function ray(sq: number, dir: number, n: number): number[] {
   return Array.from({ length: n }, (_, k) => squareAt(fileOf(sq) + (k + 1) * df, rankOf(sq) + (k + 1) * dr));
 }
 
-/** A move's write with the board replaced by `board`, and counts that agree with it. */
-function forgedBoard(ops: WriteOp[], board: Board, extra: Data = {}): WriteOp[] {
-  return patched(ops, { board: toMap(board), counts: counts(board), ...extra });
-}
-
 /**
  * Cheats derived from the real move at `sq`, each denied with nothing
- * changed. Forged boards come with counts computed from them, so the board
- * checks are what deny them.
+ * changed. A forged board is sent with the counts the rules expect for the
+ * stored runs (the mover gains the claimed flips and the placed disc), so
+ * the counts agree with the claim and the board checks are what deny it.
  */
 async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> {
   const seat = doc.currentTurn;
@@ -179,6 +213,20 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
   const pos = { board: before, turn: me };
   const placed = applyMove(pos, sq);
   const key = squareKey(sq);
+  /** The write with `board`, the move stored as `runs` at `at`, and the counts those runs claim. */
+  const forgedBoard = (board: Board, extra: { lastMove?: { at: string; runs: number[] } } = {}): WriteOp[] => {
+    const lastMove = extra.lastMove ?? { at: key, runs: placed.runs };
+    const from = lastMove.at === key ? sq : squareOfKey(lastMove.at);
+    const claimed = lastMove.runs.reduce((sum, n, dir) => {
+      const end = ray(from, dir, n + 1)[n];
+      return sum + (n > 0 && end >= 0 && before[end] === me ? n : 0);
+    }, 0);
+    const tally = { ...doc.counts, [me]: doc.counts[me] + claimed + 1, [op]: doc.counts[op] - claimed };
+    // A game the real move ends names the winner these counts give, so the result check passes too.
+    const result = up.status === 'playing' ? {}
+      : tally.d === tally.l ? { status: 'draw', winner: '' } : { status: 'won', winner: tally.d > tally.l ? 'host' : 'guest' };
+    return patched(real, { board: toMap(board), counts: tally, lastMove, ...result });
+  };
 
   await m.denied('move out of turn', m.dbFor[otherSeat(seat)], real);
   await m.denied('a stranger moves', m.stranger, real);
@@ -190,30 +238,36 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
       // The run left unflipped, with its reach stored honestly, then claimed as 0.
       const missed = placed.board.slice();
       for (const s of ray(sq, dir, n)) missed[s] = op;
-      await m.denied(`miss the flip in direction ${dir}`, db, forgedBoard(real, missed));
+      await m.denied(`miss the flip in direction ${dir}`, db, forgedBoard(missed));
       const runs = placed.runs.slice();
       runs[dir] = 0;
-      await m.denied(`miss the flip in direction ${dir} and store no reach`, db, forgedBoard(real, missed, { lastMove: { at: key, runs } }));
+      await m.denied(`miss the flip in direction ${dir} and store no reach`, db, forgedBoard(missed, { lastMove: { at: key, runs } }));
       // Only the first disc of a longer run flipped.
       if (n > 1) {
         const partial = placed.board.slice();
         for (const s of ray(sq, dir, n).slice(1)) partial[s] = op;
-        await m.denied(`flip part of the run in direction ${dir}`, db, forgedBoard(real, partial));
+        await m.denied(`flip part of the run in direction ${dir}`, db, forgedBoard(partial));
       }
-      // The run emptied instead of flipped.
-      const emptied = placed.board.slice();
-      emptied[ray(sq, dir, 1)[0]] = '';
-      await m.denied(`empty a flipped disc in direction ${dir}`, db, forgedBoard(real, emptied));
-      // Reach stored one short: the square past it is still the opponent's, or the end is claimed early.
+      // Each disc of the run emptied instead of flipped.
+      for (const [k, s] of ray(sq, dir, n).entries()) {
+        const emptied = placed.board.slice();
+        emptied[s] = '';
+        await m.denied(`empty flipped disc ${k + 1} in direction ${dir}`, db, forgedBoard(emptied));
+      }
+      // Reach stored one short: the square past it is still the opponent's. Flip the shorter run, or nothing.
       runs[dir] = n - 1;
       const short = placed.board.slice();
       short[ray(sq, dir, n)[n - 1]] = op;
-      await m.denied(`store the reach in direction ${dir} one short`, db, forgedBoard(real, short, { lastMove: { at: key, runs } }));
+      await m.denied(`store the reach in direction ${dir} one short`, db, forgedBoard(short, { lastMove: { at: key, runs } }));
+      if (n > 1) await m.denied(`store the reach in direction ${dir} one short and miss the flip`, db, forgedBoard(missed, { lastMove: { at: key, runs } }));
+      // Reach stored one long, over the mover's own disc, to hide the flip.
+      runs[dir] = n + 1;
+      await m.denied(`store the reach in direction ${dir} over the mover's disc and miss the flip`, db, forgedBoard(missed, { lastMove: { at: key, runs } }));
     } else if (r > 0) {
       // An unbracketed run flipped, stored honestly and stored as bracketed.
       const extra = placed.board.slice();
       for (const s of ray(sq, dir, r)) extra[s] = me;
-      await m.denied(`flip an unbracketed run in direction ${dir}`, db, forgedBoard(real, extra));
+      await m.denied(`flip an unbracketed run in direction ${dir}`, db, forgedBoard(extra));
       const runs = placed.runs.slice();
       runs[dir] = r + 1;
       const past = ray(sq, dir, r + 1)[r];
@@ -221,7 +275,7 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
         // Claim one square past the run, and fill it with the mover's disc.
         const filled = extra.slice();
         filled[past] = me;
-        await m.denied(`reach past the run in direction ${dir} onto an empty square`, db, forgedBoard(real, filled, { lastMove: { at: key, runs } }));
+        await m.denied(`reach past the run in direction ${dir} onto an empty square`, db, forgedBoard(filled, { lastMove: { at: key, runs } }));
       }
     } else {
       // Nothing to flip: claim the neighbor as flipped.
@@ -231,7 +285,7 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
         runs[dir] = 1;
         const claimed = placed.board.slice();
         claimed[near] = me;
-        await m.denied(`claim the ${before[near] === me ? "mover's own" : 'empty'} neighbor in direction ${dir}`, db, forgedBoard(real, claimed, { lastMove: { at: key, runs } }));
+        await m.denied(`claim the ${before[near] === me ? "mover's own" : 'empty'} neighbor in direction ${dir}`, db, forgedBoard(claimed, { lastMove: { at: key, runs } }));
       }
     }
   }
@@ -241,23 +295,23 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
   if (bystander >= 0) {
     const extra = placed.board.slice();
     extra[bystander] = me;
-    await m.denied('flip an extra opponent disc', db, forgedBoard(real, extra));
+    await m.denied('flip an extra opponent disc', db, forgedBoard(extra));
     await m.denied('flip an extra disc and keep the counts', db, patched(real, { board: toMap(extra) }));
   }
   const own = before.findIndex((c) => c === me);
   if (own >= 0) {
     const turned = placed.board.slice();
     turned[own] = op;
-    await m.denied("flip one of the mover's own discs", db, forgedBoard(real, turned));
+    await m.denied("flip one of the mover's own discs", db, forgedBoard(turned));
     const removed = placed.board.slice();
     removed[own] = '';
-    await m.denied("remove one of the mover's own discs", db, forgedBoard(real, removed));
+    await m.denied("remove one of the mover's own discs", db, forgedBoard(removed));
   }
   const emptySquare = before.findIndex((c, s) => c === '' && s !== sq);
   if (emptySquare >= 0) {
     const added = placed.board.slice();
     added[emptySquare] = me;
-    await m.denied('place a second disc', db, forgedBoard(real, added));
+    await m.denied('place a second disc', db, forgedBoard(added));
   }
 
   // A move on an occupied square: flips computed as if it were empty.
@@ -267,7 +321,17 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
     emptied[occupied] = '';
     const onTop = applyMove({ board: emptied, turn: me }, occupied);
     const kind = before[occupied] === me ? 'own' : "opponent's";
-    await m.denied(`play on an ${kind} disc`, db, forgedBoard(real, onTop.board, { lastMove: { at: squareKey(occupied), runs: onTop.runs } }));
+    await m.denied(`play on an ${kind} disc`, db, forgedBoard(onTop.board, { lastMove: { at: squareKey(occupied), runs: onTop.runs } }));
+  }
+  // An opponent's disc that brackets a run of its own side, taken over as a move.
+  for (let s = 0; s < 64; s++) {
+    if (before[s] !== op) continue;
+    const emptied = before.slice();
+    emptied[s] = '';
+    const onTop = applyMove({ board: emptied, turn: me }, s);
+    if (onTop.flipped.length === 0) continue;
+    await m.denied("play a legal-looking move on an opponent's disc", db, forgedBoard(onTop.board, { lastMove: { at: squareKey(s), runs: onTop.runs } }));
+    break;
   }
 
   // A move that flips nothing: an empty square with no bracketed run.
@@ -275,7 +339,7 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
   if (idle >= 0) {
     const quiet = before.slice();
     quiet[idle] = me;
-    await m.denied('play a square that flips nothing', db, forgedBoard(real, quiet, { lastMove: { at: squareKey(idle), runs: applyMove(pos, idle).runs } }));
+    await m.denied('play a square that flips nothing', db, forgedBoard(quiet, { lastMove: { at: squareKey(idle), runs: applyMove(pos, idle).runs } }));
   }
   // The stored square is not where the disc went.
   const elsewhere = legalMoves(pos).find((s) => s !== sq);
@@ -292,7 +356,7 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
     runs[fractional] += 0.5;
     const missed = placed.board.slice();
     for (const s of ray(sq, fractional, placed.runs[fractional])) missed[s] = op;
-    await m.denied('store a fractional reach and skip the flip', db, forgedBoard(real, missed, { lastMove: { at: key, runs } }));
+    await m.denied('store a fractional reach and skip the flip', db, forgedBoard(missed, { lastMove: { at: key, runs } }));
   }
   await m.denied('add a field to the move', db, patched(real, { lastMove: { ...up.lastMove, note: 'x' } }));
   await m.denied('add a square to the board', db, patched(real, { board: { ...up.board, '99': '' } }));
@@ -306,7 +370,11 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
   const leader: Seat = c.d > c.l ? 'host' : 'guest';
   await m.denied('name the side with fewer discs the winner', db, patched(real, { status: 'won', winner: c.d === c.l ? 'host' : otherSeat(leader) }));
   if (c.d !== c.l) await m.denied('call a draw with unequal counts', db, patched(real, { status: 'draw', winner: '' }));
-  if (c.d === c.l) await m.denied('name a winner on equal counts', db, patched(real, { status: 'won', winner: 'host' }));
+  if (c.d === c.l) {
+    await m.denied('name dark the winner on equal counts', db, patched(real, { status: 'won', winner: 'host' }));
+    await m.denied('name light the winner on equal counts', db, patched(real, { status: 'won', winner: 'guest' }));
+  }
+  await m.denied('move and mark the match resigned', db, patched(real, { status: 'resigned', winner: c.d === c.l ? 'guest' : leader }));
   if (up.status === 'playing') await m.denied('name a winner while play goes on', db, patched(real, { winner: leader }));
   // Play on with the board full; with squares left, only the replay can tell the game is over.
   if (c.d + c.l === 64) await m.denied('play on with the board full', db, patched(real, { status: 'playing', winner: '' }));
@@ -446,6 +514,22 @@ describe('Reversi Security Rules', () => {
     if (full.m.stored().status !== 'won') failures.push(`the full-board line ended ${full.m.stored().status}`);
     failures.push(...full.m.failures);
 
+    // Runs of every length a move can flip, 1 to 6, east from a1, with the cheats on each.
+    for (let n = 1; n <= 6; n++) {
+      const row: Board = Array(64).fill('');
+      for (let k = 1; k <= n; k++) row[squareAt(k, 1)] = 'l';
+      row[squareAt(n + 1, 1)] = 'd';
+      row[squareOfName('h8')] = 'l';
+      // A second run north (a2, bracketed by a3), so hiding the east flip still leaves a flip.
+      row[squareOfName('a2')] = 'l';
+      row[squareOfName('a3')] = 'd';
+      const run = await seeded(`run${n}`, row, 'host', 20);
+      await moveCheats(run, run.stored(), squareOfName('a1'));
+      await run.allowed(`flip a run of ${n}`, run.dbFor.host, moveOps(run.id, run.stored(), squareOfName('a1')));
+      if (!verifyMove(run.stored())) run.failures.push(`replay rejected a run of ${n}`);
+      failures.push(...run.failures);
+    }
+
     // A wipeout with squares left: light has no move and passes, then dark takes the last light disc.
     const board: Board = Array(64).fill('');
     board[squareOfName('a1')] = 'd';
@@ -476,6 +560,12 @@ describe('Reversi Security Rules', () => {
     await n.allowed('dark plays d3 and claims the game (rules cannot search)', n.dbFor.host,
       patched(moveOps(n.id, start, squareOfName('d3')), { status: 'won', winner: up.counts.d > up.counts.l ? 'host' : 'guest' }));
     if (verifyMove(n.stored())) n.failures.push('replay missed a false end');
+    {
+      // Once the match is over, even a legal move is denied.
+      const over = n.stored();
+      const reply = legalMoves(positionOf(over.board, 'guest'))[0];
+      await n.denied('a legal move after the game ended', n.dbFor.guest, patched(moveOps(n.id, over, reply), { status: 'playing', winner: '' }));
+    }
 
     // The opposite claim: dark takes the last light disc with squares left and plays on.
     const wiped: Board = Array(64).fill('');
@@ -487,11 +577,31 @@ describe('Reversi Security Rules', () => {
     if (verifyMove(o.stored())) o.failures.push('replay missed a game that should have ended');
     n.failures.push(...o.failures);
 
+    const k = new Match('cancel');
+    await k.allowed('create', k.dbFor.host, [{ type: 'set', path: k.path, data: { ...createdMatch(reversi, 'host-uid'), createdAt: FieldValue.serverTimestamp() } }]);
+    for (const [label, db] of [['a stranger cancels', k.stranger], ['the would-be guest cancels', k.dbFor.guest]] as const) {
+      try {
+        await db.doc(k.path).delete();
+        k.failures.push(`allowed: ${label}`);
+      } catch {
+        // denied
+      }
+    }
+    try {
+      await k.dbFor.host.doc(k.path).delete();
+    } catch (e) {
+      k.failures.push(`denied: the host cancels a waiting match (${(e as Error).message})`);
+    }
+    if (k.stored()) k.failures.push('the cancelled match is still there');
+    n.failures.push(...k.failures);
+
     const r = new Match('resign');
     await r.createAndJoin(false);
     const resign = (data: Data): WriteOp[] => [{ type: 'update', path: r.path, data }];
     await r.denied('a stranger resigns the match', r.stranger, resign({ status: 'resigned', winner: 'host' }));
     await r.denied('light resigns for dark', r.dbFor.guest, resign({ status: 'resigned', winner: 'guest' }));
+    await r.denied('name the opponent the winner and play on', r.dbFor.guest, resign({ winner: 'host' }));
+    await r.denied('concede as a win instead of a resignation', r.dbFor.guest, resign({ status: 'won', winner: 'host' }));
     await r.denied('resign and flip a disc', r.dbFor.guest, resign({ status: 'resigned', winner: 'host', board: { ...r.stored().board, '44': 'd' } }));
     await r.allowed('light resigns', r.dbFor.guest, resign({ status: 'resigned', winner: 'host' }));
     expect([...m.failures, ...n.failures, ...r.failures]).toEqual([]);
