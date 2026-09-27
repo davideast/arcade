@@ -85,6 +85,19 @@
         "phaser": "4.2.1",
       },
     },
+    "games/reversi": {
+      "name": "@games/reversi",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
     "games/tictactoe": {
       "name": "@games/tictactoe",
       "dependencies": {
@@ -309,6 +322,8 @@
     "@games/kit": ["@games/kit@workspace:packages/kit"],
 
     "@games/pool": ["@games/pool@workspace:games/pool"],
+
+    "@games/reversi": ["@games/reversi@workspace:games/reversi"],
 
     "@games/tictactoe": ["@games/tictactoe@workspace:games/tictactoe"],
 
