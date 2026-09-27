@@ -505,7 +505,7 @@ describe('Yacht Security Rules', () => {
 
   // Final scores for four players: the top seat in each place, with the others
   // arranged so that naming each wrong seat breaks exactly one ordering check.
-  const endings: Array<[string, (sum: number) => number[], number, string]> = [
+  const endings: Array<[string, (sum: number) => number[], number, 'won' | 'draw']> = [
     ['seat 0 on top', () => [200, 100, 20, 30], 0, 'won'],
     ['seat 1 on top, seat 0 second', () => [100, 200, 50, 20], 1, 'won'],
     ['seat 1 on top, seat 0 last', () => [10, 200, 50, 20], 1, 'won'],
