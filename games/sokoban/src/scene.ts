@@ -203,7 +203,7 @@ export class SokobanScene extends Phaser.Scene {
       this.verdicts.set(key, verdict);
       if (!verdict.ok && !this.announced.has(key) && this.sys.isActive()) {
         this.announced.add(key);
-        this.chrome.denied(`${this.name(entry.uid)}: ${verdict.reason}`.slice(0, 40));
+        this.chrome.denied(`Flagged ${this.name(entry.uid)}: replay fails`);
       }
       if (this.sys.isActive()) this.renderPanel();
     })();
@@ -247,7 +247,7 @@ export class SokobanScene extends Phaser.Scene {
     const flagged = this.entries.filter((e) => this.verdicts.get(e.object)?.ok === false);
     const status = this.play.solved
       ? `Solved in ${this.play.moveCount} moves, ${this.play.pushCount} pushes.${this.saving ? ' Saving...' : ''}`
-      : `${spec.name} (D. W. Skinner). Push every box onto a goal.`;
+      : `${spec.name} by D. W. Skinner.`;
     const flagNote = flagged.length > 0 ? ` ${flagged.length} flagged.` : '';
     this.chrome.setStatus(`${status}${flagNote}`, flagged.length > 0 ? 'red' : this.play.solved ? 'sand' : 'cream');
 
