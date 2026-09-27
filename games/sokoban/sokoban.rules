@@ -1,0 +1,65 @@
+rules_version = '2+modules';
+
+// Sokoban score rules. A score is `sokoban/{level}/scores/{uid}`: one per
+// player per level, holding that player's best solve. Its fields are uid,
+// level, moves, pushes, solve (the solve's id), object (the Storage object
+// with the move list) and createdAt.
+//
+// The rules check that the score is the owner's own, for a level the arcade
+// has, with integer counts no lower than the level's fewest moves and fewest
+// pushes, no more than 2,000 moves and no more pushes than moves, naming the
+// object `sokoban/{uid}/{level}/{solve}-{moves}-{pushes}.txt` under the
+// owner's uid, and stamped with the server time. A later score replaces it
+// only with fewer moves, or as many moves and fewer pushes. There is no
+// delete: a score stays on the leaderboard.
+//
+// The rules can't replay a move list or see Storage. The Storage rules
+// (app/storage.rules) allow the object only when this document names it;
+// every client downloads the object, replays it on the level, and flags a
+// score whose moves don't solve the level or don't match its counts.
+
+// Each level's fewest moves and fewest pushes, found by breadth-first search
+// (games/sokoban/src/levels.ts holds the same numbers, checked by a test).
+function sokobanLevels() {
+  return {
+    '1': [33, 8],
+    '2': [16, 3],
+    '3': [41, 13],
+    '4': [23, 7],
+    '5': [25, 6],
+    '7': [26, 6]
+  };
+}
+
+// The score written to `sokoban/{level}/scores/{uid}`, create or update.
+function sokobanScore(level, uid) {
+  let d = request.resource.data;
+  let least = sokobanLevels()[level];
+  return request.auth != null && request.auth.uid == uid
+    && level in sokobanLevels()
+    // Read without the let: lint doesn't follow let bindings (bugs/0010).
+    && request.resource.data.keys().hasOnly(['uid', 'level', 'moves', 'pushes', 'solve', 'object', 'createdAt'])
+    && d.uid == uid
+    && d.level == level
+    && d.moves is int
+    && d.pushes is int
+    && d.moves >= least[0]
+    && d.moves <= 2000
+    && d.pushes >= least[1]
+    && d.pushes <= d.moves
+    && d.solve.matches('[A-Za-z0-9]{20}')
+    && d.object == 'sokoban/' + uid + '/' + level + '/' + d.solve + '-' + string(d.moves) + '-' + string(d.pushes) + '.txt'
+    && d.createdAt == request.time;
+}
+
+export function sokobanScoreCreate(level, uid) {
+  return sokobanScore(level, uid);
+}
+
+// A new best replaces the old one: fewer moves, or as many and fewer pushes.
+export function sokobanScoreImprove(level, uid) {
+  let d = request.resource.data;
+  let best = resource.data;
+  return sokobanScore(level, uid)
+    && (d.moves < best.moves || (d.moves == best.moves && d.pushes < best.pushes));
+}

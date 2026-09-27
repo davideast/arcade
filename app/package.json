@@ -8,13 +8,17 @@
     "rules:resolve": "pyric firestore rules resolve firestore.modules.rules --out firestore.rules"
   },
   "dependencies": {
+    "@games/air-hockey": "workspace:*",
     "@games/battleship": "workspace:*",
     "@games/checkers": "workspace:*",
     "@games/chess": "workspace:*",
     "@games/kit": "workspace:*",
     "@games/pool": "workspace:*",
+    "@games/reversi": "workspace:*",
+    "@games/sokoban": "workspace:*",
     "@games/tictactoe": "workspace:*",
     "@games/turn-net": "workspace:*",
-    "@games/uno": "workspace:*"
+    "@games/uno": "workspace:*",
+    "@games/yacht": "workspace:*"
   }
 }

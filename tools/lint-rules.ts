@@ -2,7 +2,10 @@
 // Prints every issue and exits 1 on an error. EXPRESSION_BUDGET warnings are
 // summarized: they are static estimates, and each must stay under the
 // 1,000-expression runtime budget production enforces per request.
+// Then checks app/storage.rules. Pyric's Storage lint is a parse, so a
+// Storage ruleset that doesn't parse is the error it can report.
 import { lint } from 'pyric/rules';
+import { parseStorageRules } from 'pyric/storage';
 
 const path = process.argv[2] ?? 'app/firestore.rules';
 const issues = lint(await Bun.file(path).text());
@@ -14,5 +17,15 @@ const estimates = budget.map((i) => Number(/~(\d+) expression nodes/.exec(i.mess
 const largest = Math.max(0, ...estimates);
 console.log(`EXPRESSION_BUDGET: ${budget.length} rules warned, largest estimate ~${largest} of 1000`);
 
+const storagePath = 'app/storage.rules';
+let storageError = '';
+try {
+  parseStorageRules(await Bun.file(storagePath).text());
+  console.log(`${storagePath}: parses`);
+} catch (e) {
+  storageError = e instanceof Error ? e.message : String(e);
+  console.log(`error ${storagePath}: ${storageError}`);
+}
+
 const errors = others.filter((i) => i.severity === 'error');
-if (errors.length > 0 || largest >= 1000) process.exit(1);
+if (errors.length > 0 || largest >= 1000 || storageError) process.exit(1);

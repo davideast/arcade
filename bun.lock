@@ -22,14 +22,31 @@
     "app": {
       "name": "@games/app",
       "dependencies": {
+        "@games/air-hockey": "workspace:*",
         "@games/battleship": "workspace:*",
         "@games/checkers": "workspace:*",
         "@games/chess": "workspace:*",
         "@games/kit": "workspace:*",
         "@games/pool": "workspace:*",
+        "@games/reversi": "workspace:*",
+        "@games/sokoban": "workspace:*",
         "@games/tictactoe": "workspace:*",
         "@games/turn-net": "workspace:*",
         "@games/uno": "workspace:*",
+        "@games/yacht": "workspace:*",
+      },
+    },
+    "games/air-hockey": {
+      "name": "@games/air-hockey",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
       },
     },
     "games/battleship": {
@@ -84,6 +101,29 @@
         "phaser": "4.2.1",
       },
     },
+    "games/reversi": {
+      "name": "@games/reversi",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
+    "games/sokoban": {
+      "name": "@games/sokoban",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
     "games/tictactoe": {
       "name": "@games/tictactoe",
       "dependencies": {
@@ -99,6 +139,19 @@
     },
     "games/uno": {
       "name": "@games/uno",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
+    "games/yacht": {
+      "name": "@games/yacht",
       "dependencies": {
         "@games/kit": "workspace:*",
         "@games/turn-net": "workspace:*",
@@ -282,6 +335,8 @@
 
     "@fontsource/silkscreen": ["@fontsource/silkscreen@5.3.0", "", {}, "sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA=="],
 
+    "@games/air-hockey": ["@games/air-hockey@workspace:games/air-hockey"],
+
     "@games/app": ["@games/app@workspace:app"],
 
     "@games/battleship": ["@games/battleship@workspace:games/battleship"],
@@ -296,11 +351,17 @@
 
     "@games/pool": ["@games/pool@workspace:games/pool"],
 
+    "@games/reversi": ["@games/reversi@workspace:games/reversi"],
+
+    "@games/sokoban": ["@games/sokoban@workspace:games/sokoban"],
+
     "@games/tictactoe": ["@games/tictactoe@workspace:games/tictactoe"],
 
     "@games/turn-net": ["@games/turn-net@workspace:packages/turn-net"],
 
     "@games/uno": ["@games/uno@workspace:games/uno"],
+
+    "@games/yacht": ["@games/yacht@workspace:games/yacht"],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.9.16", "", { "dependencies": { "@grpc/proto-loader": "^0.7.8", "@types/node": ">=12.12.47" } }, "sha512-wE4Ut/olIzfKqp631XrG+wbF0v1vWFN4YL9FyXC2LJiG33DsV7PLzURjrCvY/6je2ntdRkeLpPDluzSRGaVltQ=="],
 

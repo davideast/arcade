@@ -16,7 +16,7 @@ import {
   writeBatch,
   type Firestore,
 } from 'firebase/firestore';
-import type { Connection } from '@games/turn-net';
+import { listenOptions, type Connection } from '@games/turn-net';
 import { shuffledDeck, type Card } from './cards.ts';
 import {
   COLLECTION,
@@ -128,15 +128,15 @@ export function watchUno(connection: Connection, id: string, onChange: (view: Un
   };
 
   const stops = [
-    onSnapshot(doc(connection.db, COLLECTION, id), (snap) => {
+    onSnapshot(doc(connection.db, COLLECTION, id), listenOptions(), (snap) => {
       match = snap.exists() ? (snap.data() as UnoMatch) : null;
       void emit();
     }),
-    onSnapshot(query(collection(connection.db, COLLECTION, id, 'draws'), where('uid', '==', me)), (snap) => {
+    onSnapshot(query(collection(connection.db, COLLECTION, id, 'draws'), where('uid', '==', me)), listenOptions(), (snap) => {
       drawn = snap.docs.map((d) => Number(d.id));
       void emit();
     }),
-    onSnapshot(collection(connection.db, COLLECTION, id, 'played'), (snap) => {
+    onSnapshot(collection(connection.db, COLLECTION, id, 'played'), listenOptions(), (snap) => {
       played = new Set(snap.docs.map((d) => Number(d.id)));
       void emit();
     }),

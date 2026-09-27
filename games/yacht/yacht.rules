@@ -1,0 +1,222 @@
+rules_version = '2+modules';
+
+// Yacht: 2 to 4 players, twelve categories, no upper-section bonus.
+//   ones .. sixes: the sum of that face. fullHouse: three of one face and two
+//   of another, the sum of all dice (five of a kind is not a full house).
+//   fourKind: four or more of one face, the sum of four of them.
+//   littleStraight 1-5 and bigStraight 2-6: 30. choice: the sum. yacht: 50.
+//
+// Fair dice by commit-reveal, checked here with hashing.sha256:
+//   commit  the player on turn stores commit = SHA-256(salt) and the dice
+//           they keep, before any nonce exists.
+//   nonce   every other player stores a 32-hex nonce for their seat.
+//   reveal  the player on turn stores the salt; SHA-256(salt) must equal the
+//           commitment, and the dice must equal the derivation: h =
+//           SHA-256(salt + nonces '0' to '3'), uppercase hex with C-F removed,
+//           each of the first five characters v (0..11) giving the die v % 6 + 1.
+//           Kept dice keep their value.
+// A turn is at most three reveals, then one unused category scored with the
+// points computed here from the stored dice. Totals, turn order and the end
+// of the game (every seat has scored all twelve) are checked on each score.
+
+function yachtMyTurn() {
+  return resource.data.players[resource.data.turn] == request.auth.uid;
+}
+
+function yachtCard() {
+  return {'ones': -1, 'twos': -1, 'threes': -1, 'fours': -1, 'fives': -1, 'sixes': -1,
+          'fullHouse': -1, 'fourKind': -1, 'littleStraight': -1, 'bigStraight': -1, 'choice': -1, 'yacht': -1};
+}
+
+function yachtStartScores(n) {
+  return n == 2 ? {'s0': yachtCard(), 's1': yachtCard()}
+    : n == 3 ? {'s0': yachtCard(), 's1': yachtCard(), 's2': yachtCard()}
+    : {'s0': yachtCard(), 's1': yachtCard(), 's2': yachtCard(), 's3': yachtCard()};
+}
+
+function yachtEmptyNonces(n) {
+  return n == 2 ? {'0': '', '1': ''}
+    : n == 3 ? {'0': '', '1': '', '2': ''}
+    : {'0': '', '1': '', '2': '', '3': ''};
+}
+
+function yachtCount(d, face) {
+  return 5 - d.removeAll([face]).size();
+}
+
+// Points for `cat` from the five dice `d`.
+function yachtPoints(cat, d) {
+  let faces = {'ones': 1, 'twos': 2, 'threes': 3, 'fours': 4, 'fives': 5, 'sixes': 6};
+  let sum = d[0] + d[1] + d[2] + d[3] + d[4];
+  return cat in faces ? faces[cat] * yachtCount(d, faces[cat])
+    : cat == 'fullHouse' ? (d.toSet().size() == 2 && yachtCount(d, d[0]) in [2, 3] ? sum : 0)
+    : cat == 'fourKind' ? (yachtCount(d, d[0]) >= 4 ? 4 * d[0] : (yachtCount(d, d[1]) >= 4 ? 4 * d[1] : 0))
+    : cat == 'littleStraight' ? (d.toSet() == [1, 2, 3, 4, 5].toSet() ? 30 : 0)
+    : cat == 'bigStraight' ? (d.toSet() == [2, 3, 4, 5, 6].toSet() ? 30 : 0)
+    : cat == 'choice' ? sum
+    : (cat == 'yacht' && d.toSet().size() == 1 ? 50 : 0);
+}
+
+// Every seat's total is unchanged except the player on turn's, which grows by `pts`.
+function yachtTotalsMoved(pts) {
+  let before = resource.data.totals;
+  let after = request.resource.data.totals;
+  let t = resource.data.turn;
+  return after.size() == before.size()
+    && after[t] == before[t] + pts
+    && (0 == t || after[0] == before[0])
+    && (1 == t || after[1] == before[1])
+    && (2 >= before.size() || 2 == t || after[2] == before[2])
+    && (3 >= before.size() || 3 == t || after[3] == before[3]);
+}
+
+// The final score: `w` is the first seat with the top total, and the status
+// is 'draw' when a later seat ties it, 'won' otherwise.
+function yachtFinal(t, w, n, status) {
+  let tie = (1 > w && 1 < n && t[1] == t[w]) || (2 > w && 2 < n && t[2] == t[w]) || (3 > w && 3 < n && t[3] == t[w]);
+  return w >= 0 && w < n
+    && (0 >= w || t[0] < t[w])
+    && (1 >= w || t[1] < t[w])
+    && (2 >= w || t[2] < t[w])
+    && (1 <= w || 1 >= n || t[1] <= t[w])
+    && (2 <= w || 2 >= n || t[2] <= t[w])
+    && (3 <= w || 3 >= n || t[3] <= t[w])
+    && status == (tie ? 'draw' : 'won');
+}
+
+// Written without a let for request.resource.data: lint misses a let-bound
+// read (bugs/0010).
+export function yachtCreate() {
+  return request.auth != null
+    && request.resource.data.keys().hasOnly(['host', 'players', 'status', 'turn', 'rolls', 'commit', 'keep', 'nonces', 'salt', 'dice',
+         'scores', 'totals', 'lastAction', 'lastSeat', 'lastCategory', 'moveCount', 'winner', 'createdAt'])
+    && request.resource.data.host == request.auth.uid
+    && request.resource.data.players == [request.auth.uid]
+    && request.resource.data.status == 'waiting'
+    && request.resource.data.turn == 0
+    && request.resource.data.rolls == 0
+    && request.resource.data.commit == ''
+    && request.resource.data.keep == [false, false, false, false, false]
+    && request.resource.data.nonces == {}
+    && request.resource.data.salt == ''
+    && request.resource.data.dice == [0, 0, 0, 0, 0]
+    && request.resource.data.scores == {}
+    && request.resource.data.totals == []
+    && request.resource.data.lastAction == 'create'
+    && request.resource.data.lastSeat == 0
+    && request.resource.data.lastCategory == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.winner == -1
+    && request.resource.data.createdAt == request.time;
+}
+
+export function yachtJoin() {
+  return request.auth != null
+    && resource.data.status == 'waiting'
+    && !(request.auth.uid in resource.data.players)
+    && resource.data.players.size() < 4
+    && request.resource.data.players == resource.data.players.concat([request.auth.uid])
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['players', 'lastAction']);
+}
+
+export function yachtCancel() {
+  return request.auth != null && request.auth.uid == resource.data.host && resource.data.status == 'waiting';
+}
+
+export function yachtStart() {
+  let n = resource.data.players.size();
+  return request.auth != null
+    && request.auth.uid == resource.data.host
+    && resource.data.status == 'waiting'
+    && n >= 2
+    && request.resource.data.status == 'playing'
+    && request.resource.data.nonces == yachtEmptyNonces(n)
+    && request.resource.data.scores == yachtStartScores(n)
+    && request.resource.data.totals == (n == 2 ? [0, 0] : (n == 3 ? [0, 0, 0] : [0, 0, 0, 0]))
+    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'nonces', 'scores', 'totals', 'lastAction']);
+}
+
+// The player on turn commits to a salt and names the dice they keep.
+export function yachtCommit() {
+  let before = resource.data;
+  let after = request.resource.data;
+  return request.auth != null
+    && before.status == 'playing'
+    && yachtMyTurn()
+    && before.commit == ''
+    && before.rolls < 3
+    && after.commit.matches('[0-9A-F]{64}')
+    && after.keep.size() == 5
+    && after.keep.hasOnly([true, false])
+    && (before.rolls > 0 || after.keep == [false, false, false, false, false])
+    && after.nonces == yachtEmptyNonces(before.players.size())
+    && after.diff(before).affectedKeys().hasOnly(['commit', 'keep', 'nonces', 'lastAction']);
+}
+
+// Another player adds the nonce for their own seat, once per roll.
+export function yachtNonce() {
+  let before = resource.data;
+  let after = request.resource.data;
+  let seat = after.lastSeat;
+  let key = string(seat);
+  return request.auth != null
+    && before.status == 'playing'
+    && before.commit != ''
+    && seat != before.turn
+    && before.players[seat] == request.auth.uid
+    && before.nonces[key] == ''
+    && after.nonces[key].matches('[0-9A-F]{32}')
+    && after.nonces.diff(before.nonces).affectedKeys().hasOnly([key])
+    && after.diff(before).affectedKeys().hasOnly(['nonces', 'lastSeat', 'lastAction']);
+}
+
+// The player on turn reveals the salt once every other seat's nonce is in.
+export function yachtReveal() {
+  let before = resource.data;
+  let after = request.resource.data;
+  let n = before.nonces;
+  let h = hashing.sha256(after.salt + n['0'] + n['1'] + n.get('2', '') + n.get('3', '')).toHexString().replace('[C-F]', '');
+  let die = {'0': 1, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 1, '7': 2, '8': 3, '9': 4, 'A': 5, 'B': 6};
+  let k = before.keep;
+  return request.auth != null
+    && before.status == 'playing'
+    && yachtMyTurn()
+    && before.commit != ''
+    && n.values().removeAll(['']).size() == before.players.size() - 1
+    && after.salt.matches('[0-9A-F]{32}')
+    && hashing.sha256(after.salt).toHexString() == before.commit
+    && after.dice == [k[0] ? before.dice[0] : die[h[0:1]], k[1] ? before.dice[1] : die[h[1:2]],
+                      k[2] ? before.dice[2] : die[h[2:3]], k[3] ? before.dice[3] : die[h[3:4]],
+                      k[4] ? before.dice[4] : die[h[4:5]]]
+    && after.rolls == before.rolls + 1
+    && after.commit == ''
+    && after.diff(before).affectedKeys().hasOnly(['salt', 'dice', 'rolls', 'commit', 'lastAction']);
+}
+
+// The player on turn scores one unused category from the dice they rolled.
+export function yachtScore() {
+  let before = resource.data;
+  let after = request.resource.data;
+  let t = before.turn;
+  let n = before.players.size();
+  let key = 's' + string(t);
+  let cat = after.lastCategory;
+  let pts = yachtPoints(cat, before.dice);
+  let last = before.moveCount + 1 == 12 * n;
+  return request.auth != null
+    && before.status == 'playing'
+    && yachtMyTurn()
+    && before.commit == ''
+    && before.rolls > 0
+    && before.scores[key][cat] == -1
+    && after.scores[key][cat] == pts
+    && after.scores.diff(before.scores).affectedKeys().hasOnly([key])
+    && after.scores[key].diff(before.scores[key]).affectedKeys().hasOnly([cat])
+    && yachtTotalsMoved(pts)
+    && after.moveCount == before.moveCount + 1
+    && after.rolls == 0
+    && after.turn == (last ? t : (t + 1) % n)
+    && (last ? yachtFinal(after.totals, after.winner, n, after.status) : (after.status == 'playing' && after.winner == -1))
+    && after.diff(before).affectedKeys().hasOnly(['scores', 'totals', 'turn', 'rolls', 'moveCount', 'lastCategory',
+         'lastAction', 'status', 'winner']);
+}

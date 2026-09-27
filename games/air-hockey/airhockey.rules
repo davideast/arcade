@@ -1,0 +1,79 @@
+rules_version = '2+modules';
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isPlaying } from 'state';
+
+// Air hockey match rules. The lobby and the result live here; live play
+// lives in the Realtime Database. The match document follows the stdlib
+// convention (host, guest, currentTurn, status, winner, moveCount), with
+// currentTurn fixed at 'host' and moveCount at 0 since there are no turns,
+// plus `score` {host, guest} and `endedBy`: '' while open, 'goals' or
+// 'forfeit' once won.
+//
+// Rules can't run the physics or read the Realtime Database, so they check
+// the result's shape and consistency only: a win on goals is recorded by the
+// host (who runs the physics) with one side at 7 and the other below it,
+// naming that side the winner; a forfeit is recorded by a player naming
+// themself the winner with neither side at 7. Whether the other player had
+// really left, and whether the score is the live one, is checked by every
+// client against the live match (resultMatchesLive), whose rules verify the
+// forfeit against presence and the score goal by goal.
+
+function airHockeyScoreIs(s, hostMax, guestMax) {
+  return s.keys().hasOnly(['host', 'guest'])
+    && s.host is int && s.guest is int
+    && s.host >= 0 && s.host <= hostMax
+    && s.guest >= 0 && s.guest <= guestMax;
+}
+
+export function airHockeyCreate() {
+  return validCreate()
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
+         'score', 'endedBy', 'createdAt'])
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.score == {'host': 0, 'guest': 0}
+    && request.resource.data.endedBy == '';
+}
+
+export function airHockeyJoin() {
+  return validJoin() && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function airHockeyCancel() {
+  return canCancel();
+}
+
+// The host records a side reaching 7 goals.
+export function airHockeyFinish() {
+  let s = request.resource.data.score;
+  let w = request.resource.data.winner;
+  return request.auth != null && isPlaying()
+    && request.auth.uid == resource.data.host
+    && request.resource.data.status == 'won'
+    && ((w == 'host' && s.host == 7 && airHockeyScoreIs(s, 7, 6))
+      || (w == 'guest' && s.guest == 7 && airHockeyScoreIs(s, 6, 7)))
+    && onlyFieldsChanged(['status', 'winner', 'score', 'endedBy']);
+}
+
+// A player records that the other left, and names themself the winner.
+export function airHockeyForfeit() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && request.resource.data.status == 'won'
+    && request.resource.data.winner == (uid == resource.data.host ? 'host' : 'guest')
+    && airHockeyScoreIs(request.resource.data.score, 6, 6)
+    && onlyFieldsChanged(['status', 'winner', 'score', 'endedBy']);
+}
+
+export function airHockeyResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}

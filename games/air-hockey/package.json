@@ -1,0 +1,21 @@
+{
+  "name": "@games/air-hockey",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./logic": "./src/logic.ts",
+    "./physics": "./src/physics.ts",
+    "./rtdb-rules": "./src/rtdb-rules.ts"
+  },
+  "dependencies": {
+    "@games/kit": "workspace:*",
+    "@games/turn-net": "workspace:*"
+  },
+  "peerDependencies": {
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@games/harness": "workspace:*"
+  }
+}

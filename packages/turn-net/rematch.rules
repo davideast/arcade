@@ -10,9 +10,9 @@ function isFinished(d) {
   return d.status in ['won', 'draw', 'resigned'];
 }
 
-// Uno seats every player in `players`; the two-seat games use host and guest.
+// Uno and Yacht seat every player in `players`; the two-seat games use host and guest.
 function playedIn(game, d) {
-  return game == 'uno'
+  return game in ['uno', 'yacht']
     ? request.auth.uid in d.players
     : (request.auth.uid == d.host || request.auth.uid == d.guest);
 }
@@ -21,7 +21,7 @@ function playedIn(game, d) {
 export function rematchCreate(db, game, id) {
   let next = request.resource.data.match;
   return request.auth != null
-    && game in ['tictactoe', 'uno', 'pool', 'battleship', 'chess', 'checkers']
+    && game in ['tictactoe', 'uno', 'pool', 'battleship', 'chess', 'checkers', 'yacht', 'reversi', 'airhockey']
     && request.resource.data.keys().hasOnly(['game', 'match', 'by'])
     && request.resource.data.game == game
     && request.resource.data.by == request.auth.uid

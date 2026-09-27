@@ -18,6 +18,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import type { Connection } from './index.ts';
+import { listenOptions } from './owner.ts';
 
 /** The rematch document of the finished match `matchId` in `game`. */
 function rematchRef(db: Firestore, game: string, matchId: string) {
@@ -71,7 +72,7 @@ export function watchRematch(
   matchId: string,
   onChange: (rematch: Rematch | null) => void,
 ): Unsubscribe {
-  return onSnapshot(rematchRef(db, game, matchId), (snap) => onChange(snap.exists() ? (snap.data() as Rematch) : null));
+  return onSnapshot(rematchRef(db, game, matchId), listenOptions(), (snap) => onChange(snap.exists() ? (snap.data() as Rematch) : null));
 }
 
 /**

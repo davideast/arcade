@@ -82,6 +82,7 @@ Add game-specific cases for every check your rules make: captures, promotions, s
 
 - **Propose moves in a transaction or batch.** Read the match, compute the next state from that read, and write it inside `runTransaction` (single document) or a `writeBatch` (a move that creates subdocuments), so the proposal is built from the current document.
 - **Listen, don't poll.** Render from `onSnapshot`. The board shows only committed state.
+- **Name each listener's owner.** Pass `{ owner: element }` in the listen options so Pyric's listener tools can outline it. A canvas game has no DOM or React to locate listeners from, so name the element that holds the canvas.
 - **Handle denial as a normal outcome.** A denied write means the move was illegal or stale. Keep the board as it was and tell the player.
 - **Let the rules answer what the client can't know.** When the answer depends on data the player can't read (a hit on a hidden fleet), propose one answer and, if denied, the other; exactly one is stored.
 - **Query the lobby the way the rules allow.** Query open matches with `where('status', '==', 'waiting')`, matched by a read rule that allows it.
@@ -96,9 +97,9 @@ Rules can't run physics, search for checkmate, or check a multi-hop path's geome
 - Make the replay deterministic: integers for stored positions, and only `+ - * /` and `Math.sqrt` in physics, which IEEE 754 defines exactly.
 - Test it: write a result consistent with the rules but not the logic, assert the rules allow it, and assert the replay flags it.
 
-Randomness and a host-dealt deck are trusted, not enforced: rules have no random source. Say so in the game.
+Rules have no random source, but they can make randomness fair: dice from a commit-reveal, where the roller commits a hash before other players add their input, are enforced (see "Fair dice" in patterns.md). A host-dealt deck is still trusted; say so in the game.
 
 ## References
 
-- [references/patterns.md](references/patterns.md): the rule patterns, with the checks each one needs.
+- [references/patterns.md](references/patterns.md): the rule patterns, with the checks each one needs, including fair dice, directional captures, real-time play on the Realtime Database, and Storage-backed replays.
 - [references/limits.md](references/limits.md): Firestore's compiler and evaluator limits, and how they shape game rules.

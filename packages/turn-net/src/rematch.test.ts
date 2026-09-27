@@ -10,6 +10,7 @@ import { createdMatch, joinedMatch } from './transitions.ts';
 import { ticTacToe } from '../../../games/tictactoe/src/logic.ts';
 import { createdMatch as unoTable } from '../../../games/uno/src/logic.ts';
 import { createdMatch as battleshipMatch } from '../../../games/battleship/src/logic.ts';
+import { reversi } from '../../../games/reversi/src/logic.ts';
 
 const rules = await Bun.file(new URL('../../../app/firestore.rules', import.meta.url)).text();
 
@@ -19,6 +20,7 @@ const FRESH: Record<string, (uid: string) => Data> = {
   tictactoe: (uid) => createdMatch(ticTacToe, uid),
   uno: (uid) => ({ ...unoTable(uid) }),
   battleship: (uid) => ({ ...battleshipMatch(uid) }),
+  reversi: (uid) => createdMatch(reversi, uid),
 };
 
 function setup() {
@@ -38,6 +40,7 @@ function setup() {
     'uno/won': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid', 'third-uid'], status: 'won', winner: 'third-uid', createdAt: new Date(0) },
     'uno/playing': { ...unoTable('host-uid'), players: ['host-uid', 'guest-uid'], status: 'playing', createdAt: new Date(0) },
     'battleship/won': { ...battleshipMatch('host-uid'), guest: 'guest-uid', status: 'won', winner: 'host', createdAt: new Date(0) },
+    'reversi/drawn': { ...createdMatch(reversi, 'host-uid'), guest: 'guest-uid', status: 'draw', winner: '', createdAt: new Date(0) },
     'scores/resigned': ticTacToeDone,
   };
   for (const [path, data] of Object.entries(seed)) sandbox.admin.setDocument(path, data);
@@ -114,6 +117,7 @@ describe('rematch Security Rules', () => {
     await allowed('the loser proposes after a win', propose('guest-uid', 'tictactoe', 'won').commit);
     await allowed('a third Uno player proposes', propose('third-uid', 'uno', 'won').commit);
     await allowed('the Battleship host proposes', propose('host-uid', 'battleship', 'won').commit);
+    await allowed('the Reversi guest proposes after a draw', propose('guest-uid', 'reversi', 'drawn').commit);
 
     // The other player joins through the game's normal join.
     const joined = joinedMatch(env.sandbox.admin.getDocument(`tictactoe/${first.id}`) as never, 'host-uid');

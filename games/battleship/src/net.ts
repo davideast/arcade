@@ -10,7 +10,7 @@ import {
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { Connection, Seat } from '@games/turn-net';
+import { listenOptions, type Connection, type Seat } from '@games/turn-net';
 import {
   COLLECTION,
   createdMatch,
@@ -100,7 +100,7 @@ export function watchBattleship(connection: Connection, id: string, onChange: (v
       return null;
     }
   };
-  const stopMatch = onSnapshot(doc(connection.db, matchPath(id)), async (snap) => {
+  const stopMatch = onSnapshot(doc(connection.db, matchPath(id)), listenOptions(), async (snap) => {
     const m = snap.exists() ? (snap.data() as BattleshipMatch) : null;
     view.match = m;
     view.seat = m ? (m.host === me ? 'host' : m.guest === me ? 'guest' : null) : null;
@@ -110,7 +110,7 @@ export function watchBattleship(connection: Connection, id: string, onChange: (v
     }
     emit();
   });
-  const stopShots = onSnapshot(collection(connection.db, `${matchPath(id)}/shots`), (snap) => {
+  const stopShots = onSnapshot(collection(connection.db, `${matchPath(id)}/shots`), listenOptions(), (snap) => {
     view.shots = snap.docs.map((d) => d.data() as ShotDoc);
     emit();
   });

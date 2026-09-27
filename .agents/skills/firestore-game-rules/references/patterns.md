@@ -197,3 +197,40 @@ allow update: if request.resource.data.status == 'forfeit'
 ```
 
 Every move rule must also require `isServerTimestamp('lastMoveAt')` and list `lastMoveAt` in its changed fields, so the stored time can't be forged.
+
+## Fair dice: commit and reveal
+
+Rules can't roll dice, but they can make a roll fair. The roller commits `sha256(salt)` first; every other player then adds a nonce; the roller reveals the salt last. Rules check the salt against the commitment with `hashing.sha256`, then derive the dice from `sha256(salt + nonces)` and require the stored dice to equal the derivation. No single player controls a roll: the roller commits before seeing the nonces, and the others choose nonces without seeing the salt.
+
+- Derive with operations rules have: take hex characters of the digest, skip the ones that would bias the result (Yacht takes the uppercase hex digest, drops `C` to `F`, and maps each remaining digit `v`, 0 to 11, to `v % 6 + 1`), and state the derivation in the module header.
+- Kept dice are a list of positions; a reroll may change only the others, and the roll count caps at three.
+- A roller who refuses to reveal stalls the match but can't reroll. Pair it with a turn clock if stalling matters.
+- Cheats to test: a reveal that doesn't match its commitment, dice that don't match the derivation, a different salt with its own derived dice, a nonce written for another seat, a changed kept die, a fourth roll.
+
+## Directional captures: store the reach, check each direction
+
+A move that captures along lines (Reversi) can't be searched in rules. Store what the move claims per direction (for example `lastMove = { at, runs[8] }`, the number of opponent pieces captured in each direction) and check each direction in its own function: the squares were the opponent's, the square past them is the mover's, and they now belong to the mover. Key the board so a step is a fixed offset and a step off the board lands on a missing key, so no bounds checks are needed. Then check the totals: the counts change by the captured number, and exactly that many squares plus one changed.
+
+- Split by direction to stay under the 98-term chain limit, and nest the per-square checks so evaluation stops at the claimed reach.
+- Measure the runtime budget, not only the static estimate: evaluate real moves in the sandbox and look at the worst case. A long capture in every direction can approach 1,000 expressions.
+- A pass and the end of the game need a search; use replay-and-flag.
+
+## Real-time play on the Realtime Database
+
+Firestore rules referee turns; a real-time game (Air Hockey) runs on the Realtime Database, with the lobby and the result in Firestore.
+
+- **Authority:** the host simulates and writes the shared state (puck, score) about 20 times a second; the guest writes only its own input. Clients interpolate between frames.
+- **Paths:** put the host's uid in the live path (`/airhockey/{match}/{hostUid}`) so nobody else can take over a match. Mirror what the RTDB rules need from Firestore (the guest's uid, the status) into a `meta` node the host writes once, because RTDB rules can't read Firestore.
+- **Rules:** field ownership (host fields, guest fields), numbers within the table, the score rising by one per goal for one side, writes only while `meta.status` is playing, and each ending written once.
+- **Presence:** each player writes its presence with an `onDisconnect` write of `false`. A forfeit is allowed only while the other player's stored presence is `false`; the Firestore result can't check presence, so every client compares it with the live match and flags a mismatch.
+- **What rules can't check:** the physics. A cheating host can move the puck or invent goals; the guest flags jumps and goals that couldn't happen between frames.
+- Write the RTDB rules in TypeScript with Pyric's builders from `pyric/rules` (`defineRtdbRules`, `rtdbRules`), generate `database.rules.json` from them, and fail a check when the JSON drifts from the source. Probe the TypeScript source, not the JSON.
+
+## Storage-backed replays and a leaderboard
+
+A single-player game can still have a fair leaderboard when the proof is stored. Sokoban writes the score to Firestore first, then uploads the move list to Storage.
+
+- **Storage rules:** only the owner writes under their own uid path; objects are create-only; contentType and size are bounded; and a cross-service check (`firestore.get()` on the owner's score) requires the score to name this object and its size to equal the claimed move count. Anyone signed in may read, so other clients can replay.
+- **Firestore rules:** the score is the owner's, for a real level, with integer counts between the level's minimum and a cap, naming an object under the owner's uid, and it must beat the stored best.
+- **What rules can't check:** whether the moves solve the level. Every client downloads each entry, replays it, and flags one that doesn't solve the level or doesn't match its counts, or whose move list never arrived.
+- **Deploying:** production's `firestore.get()` from Storage rules reads the `(default)` database, and the Storage service agent needs the Firestore service agent role. Keep the score in `(default)` or the cross-service check denies every upload.
