@@ -29,6 +29,7 @@
         "@games/kit": "workspace:*",
         "@games/pool": "workspace:*",
         "@games/reversi": "workspace:*",
+        "@games/sokoban": "workspace:*",
         "@games/tictactoe": "workspace:*",
         "@games/turn-net": "workspace:*",
         "@games/uno": "workspace:*",
@@ -108,6 +109,16 @@
       },
       "devDependencies": {
         "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
+    "games/sokoban": {
+      "name": "@games/sokoban",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
       },
       "peerDependencies": {
         "phaser": "4.2.1",
@@ -341,6 +352,8 @@
     "@games/pool": ["@games/pool@workspace:games/pool"],
 
     "@games/reversi": ["@games/reversi@workspace:games/reversi"],
+
+    "@games/sokoban": ["@games/sokoban@workspace:games/sokoban"],
 
     "@games/tictactoe": ["@games/tictactoe@workspace:games/tictactoe"],
 

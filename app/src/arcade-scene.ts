@@ -59,6 +59,12 @@ class Tile implements Focusable {
       if (!this.dragged()) this.press();
     });
     this.setOpen(available ? 0 : null);
+    if (available && game.solo !== undefined) {
+      this.badge.setText('SOLO');
+      this.badgeBox.setFillStyle(PALETTE.lavender);
+      this.badgeBox.width = 28;
+      this.badge.setX(TILE.width - 6 - this.badgeBox.width / 2);
+    }
   }
 
   /** Open match count; null shows the game as coming soon. */
@@ -147,7 +153,8 @@ export class ArcadeScene extends Phaser.Scene {
     this.tiles = GAMES.map((game, i) => {
       const x = left + (i % 3) * (TILE.width + TILE.gap);
       const y = TILE.top + Math.floor(i / 3) * (TILE.height + TILE.gap);
-      const tile = new Tile(this, x, y, game, () => this.openLobby(game), (t) => this.scrollIntoView(t), () => dragging);
+      const open = () => (game.solo !== undefined ? go({ kind: 'play', game: game.id, match: game.solo }) : this.openLobby(game));
+      const tile = new Tile(this, x, y, game, open, (t) => this.scrollIntoView(t), () => dragging);
       this.grid.add(tile.container);
       return tile;
     });
@@ -196,7 +203,7 @@ export class ArcadeScene extends Phaser.Scene {
       if (!modalOpen()) this.setScroll(this.scroll - page);
     });
 
-    for (const game of GAMES.filter((g) => g.scene)) {
+    for (const game of GAMES.filter((g) => g.scene && g.solo === undefined)) {
       this.stops.push(
         watchOpenMatches(connection, game.id, (matches) => {
           this.open.set(game.id, matches);

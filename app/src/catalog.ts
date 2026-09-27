@@ -15,6 +15,7 @@ import { CheckersScene, createCheckers, joinCheckers } from '@games/checkers';
 import { YachtScene, createYacht, joinYacht } from '@games/yacht';
 import { ReversiScene, createReversi, joinReversi } from '@games/reversi';
 import { AirHockeyScene, createAirHockey, joinAirHockey } from '@games/air-hockey';
+import { SokobanScene, SOKOBAN_LEVELS } from '@games/sokoban';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
@@ -24,6 +25,7 @@ import checkersSheet from '../../MASFunPack/AllGames/CheckersSpriteSheet.png?url
 import yachtSheet from '../../MASFunPack/AllGames/YachtSpriteSheet.png?url';
 import reversiSheet from '../../MASFunPack/AllGames/ReversiSpriteSheet.png?url';
 import airHockeySheet from '../../MASFunPack/AllGames/AirHockeySpriteSheet.png?url';
+import sokobanSheet from '../../MASFunPack/AllGames/BoxBoxSpriteSheet.png?url';
 
 export interface ArcadeGame {
   id: string;
@@ -33,6 +35,8 @@ export interface ArcadeGame {
   sheetUrl: string;
   players: string;
   scene?: Phaser.Types.Scenes.SceneType;
+  /** A one-player game: its tile opens the scene at this route id instead of a lobby, and it has no open matches. */
+  solo?: string;
   seats(data: Record<string, unknown>): { filled: number; total: number };
   create?(connection: Connection): Promise<string>;
   join?(connection: Connection, id: string): Promise<void>;
@@ -139,6 +143,16 @@ export const GAMES: ArcadeGame[] = [
     seats: twoSeats,
     create: (c) => createAirHockey(c),
     join: (c, id) => joinAirHockey(c, id),
+  },
+  {
+    id: 'sokoban',
+    title: 'Sokoban',
+    sheetKey: 'sheet-sokoban',
+    sheetUrl: sokobanSheet,
+    players: '1',
+    scene: SokobanScene,
+    solo: SOKOBAN_LEVELS[0].id,
+    seats: () => ({ filled: 1, total: 1 }),
   },
 ];
 

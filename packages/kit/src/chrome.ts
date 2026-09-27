@@ -28,11 +28,13 @@ export interface MatchChrome {
   denied(message?: string): void;
   notice(message: string): void;
   gameOver(title: string, body: string, actions: OverlayAction[]): void;
+  /** Let the scene have the arrow keys, Tab, Enter and Space; buttons still take the pointer. */
+  setKeyboardFocus(enabled: boolean): void;
 }
 
 export function matchChrome(
   scene: Phaser.Scene,
-  options: { title: string; background?: PaletteColor; onBack: () => void },
+  options: { title: string; background?: PaletteColor; onBack: () => void; listLabel?: string },
 ): MatchChrome {
   scene.add.rectangle(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, PALETTE[options.background ?? 'lavender']).setOrigin(0, 0);
   scene.add.rectangle(0, 0, LOGICAL_WIDTH, 20, PALETTE.ink).setOrigin(0, 0);
@@ -41,7 +43,7 @@ export function matchChrome(
 
   panel(scene, SIDE.x, SIDE.y, SIDE.width, SIDE.height, 'purple', 'ink');
   const status = text(scene, SIDE.x + 6, SIDE.y + 6, '', { color: 'sand', wrap: SIDE.width - 12 });
-  text(scene, SIDE.x + 6, SIDE.y + 46, 'PLAYERS', { color: 'lavender' });
+  text(scene, SIDE.x + 6, SIDE.y + 46, options.listLabel ?? 'PLAYERS', { color: 'lavender' });
   let playerObjects: Phaser.GameObjects.GameObject[] = [];
   let actionButtons: Button[] = [];
   const focus = new FocusGroup(scene, [back]);
@@ -98,6 +100,9 @@ export function matchChrome(
           a.onPress();
         },
       })));
+    },
+    setKeyboardFocus(enabled) {
+      focus.suspend(!enabled);
     },
   };
 }

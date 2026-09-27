@@ -15,6 +15,7 @@
     "@games/kit": "workspace:*",
     "@games/pool": "workspace:*",
     "@games/reversi": "workspace:*",
+    "@games/sokoban": "workspace:*",
     "@games/tictactoe": "workspace:*",
     "@games/turn-net": "workspace:*",
     "@games/uno": "workspace:*",
