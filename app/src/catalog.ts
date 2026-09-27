@@ -13,6 +13,7 @@ import { BattleshipScene, createBattleship, joinBattleship } from '@games/battle
 import { ChessScene, createChess, joinChess } from '@games/chess';
 import { CheckersScene, createCheckers, joinCheckers } from '@games/checkers';
 import { YachtScene, createYacht, joinYacht } from '@games/yacht';
+import { ReversiScene, createReversi, joinReversi } from '@games/reversi';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
@@ -20,6 +21,7 @@ import battleshipSheet from '../../MASFunPack/AllGames/BattleshipSpriteSheet.png
 import chessSheet from '../../MASFunPack/AllGames/ChessSpriteSheet.png?url';
 import checkersSheet from '../../MASFunPack/AllGames/CheckersSpriteSheet.png?url';
 import yachtSheet from '../../MASFunPack/AllGames/YachtSpriteSheet.png?url';
+import reversiSheet from '../../MASFunPack/AllGames/ReversiSpriteSheet.png?url';
 
 export interface ArcadeGame {
   id: string;
@@ -113,6 +115,17 @@ export const GAMES: ArcadeGame[] = [
     seats: (data) => ({ filled: (data.players as string[] | undefined)?.length ?? 1, total: 4 }),
     create: (c) => createYacht(c),
     join: (c, id) => joinYacht(c, id),
+  },
+  {
+    id: 'reversi',
+    title: 'Reversi',
+    sheetKey: 'sheet-reversi',
+    sheetUrl: reversiSheet,
+    players: '2',
+    scene: ReversiScene,
+    seats: twoSeats,
+    create: (c) => createReversi(c),
+    join: (c, id) => joinReversi(c, id),
   },
 ];
 
