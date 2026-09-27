@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test';
 import { LEVELS } from './levels.ts';
 import { Play, parseLevel, replay, step, isSolved } from './sokoban.ts';
 import { minPushes, solveMoves } from './solver.ts';
+import { SOLUTIONS } from './solutions.ts';
 import { improves, levelById, objectPath, rank, solveWrites, verifyEntry, type ScoreDoc } from './logic.ts';
 
 const tiny = parseLevel([
@@ -44,6 +45,8 @@ describe('parse', () => {
       expect(best, spec.name).not.toBeNull();
       expect(best!.length, `${spec.name} moves`).toBe(spec.minMoves);
       expect(minPushes(level), `${spec.name} pushes`).toBe(spec.minPushes);
+      const kept = replay(level, SOLUTIONS[spec.id]);
+      expect(kept.ok && kept.moves, `${spec.name} stored solution`).toBe(spec.minMoves);
     }
   }, 60_000);
 });

@@ -30,6 +30,7 @@ import {
 import {
   airHockeyCreate, airHockeyJoin, airHockeyCancel, airHockeyFinish, airHockeyForfeit, airHockeyResign
 } from '../games/air-hockey/airhockey';
+import { sokobanScoreCreate, sokobanScoreImprove } from '../games/sokoban/sokoban';
 import { rematchCreate } from '../packages/turn-net/rematch';
 
 service cloud.firestore {
@@ -139,6 +140,11 @@ service cloud.firestore {
       allow update: if request.resource.data.endedBy == 'goals' && (airHockeyFinish());
       allow update: if request.resource.data.endedBy == 'forfeit' && (airHockeyForfeit());
       allow update: if request.resource.data.status == 'resigned' && (airHockeyResign());
+    }
+    match /sokoban/{level}/scores/{uid} {
+      allow read: if request.auth != null;
+      allow create: if sokobanScoreCreate(level, uid);
+      allow update: if sokobanScoreImprove(level, uid);
     }
     match /rematches/{game}/matches/{matchId} {
       allow read: if request.auth != null;
