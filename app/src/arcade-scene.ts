@@ -30,6 +30,7 @@ class Tile implements Focusable {
   private readonly badgeBox: Phaser.GameObjects.Rectangle;
   private readonly root: Phaser.GameObjects.Container;
   private focused = false;
+  private armed = false;
   private readonly baseY: number;
 
   constructor(
@@ -54,9 +55,16 @@ class Tile implements Focusable {
     this.root.setInteractive(new Phaser.Geom.Rectangle(TILE.width / 2, TILE.height / 2, TILE.width, TILE.height), Phaser.Geom.Rectangle.Contains);
     this.root.on('pointerover', () => this.highlight(true));
     this.root.on('pointerout', () => this.highlight(false));
-    // Press on release, so a drag that starts on a tile scrolls instead.
+    // Press on release, so a drag that starts on a tile scrolls instead. The
+    // press must also start on the tile: a release left over from a button
+    // that closed the lobby above it, or from the scene that routed here,
+    // does not open a lobby.
+    this.root.on('pointerdown', () => (this.armed = true));
+    this.root.on('pointerout', () => (this.armed = false));
     this.root.on('pointerup', () => {
-      if (!this.dragged()) this.press();
+      const armed = this.armed;
+      this.armed = false;
+      if (armed && !this.dragged()) this.press();
     });
     this.setOpen(available ? 0 : null);
     if (available && game.solo !== undefined) {
@@ -279,7 +287,9 @@ export class ArcadeScene extends Phaser.Scene {
     render();
     this.refreshLobby = render;
 
+    const escape = () => close();
     const close = () => {
+      this.input.keyboard?.off('keydown-ESC', escape);
       this.refreshLobby = null;
       this.closeLobby = null;
       this.data.set('modalCount', Math.max(0, (this.data.get('modalCount') ?? 1) - 1));
@@ -291,6 +301,6 @@ export class ArcadeScene extends Phaser.Scene {
       dim.destroy();
     };
     this.closeLobby = close;
-    this.input.keyboard?.once('keydown-ESC', () => close());
+    this.input.keyboard?.once('keydown-ESC', escape);
   }
 }
