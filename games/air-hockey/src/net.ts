@@ -15,7 +15,7 @@ import {
   type Database,
   type Unsubscribe,
 } from 'firebase/database';
-import { createMatch, joinMatch, type Connection } from '@games/turn-net';
+import { createMatch, joinMatch, valueListenOptions, type Connection } from '@games/turn-net';
 import {
   airHockey,
   finishOps,
@@ -86,7 +86,7 @@ export function watchLive(db: Database, id: string, hostUid: string, onChange: (
     stop = onValue(ref(db, livePath(id, hostUid)), (snap) => onChange((snap.val() as LiveMatch | null) ?? null), () => {
       stop = null;
       if (!stopped) timer = setTimeout(listen, 500);
-    });
+    }, valueListenOptions());
   };
   listen();
   return () => {

@@ -29,10 +29,12 @@ import {
 } from 'firebase/firestore';
 import { createdMatch, joinedMatch, movedMatch, resignedMatch, seatOf, type MatchDoc } from './transitions.ts';
 import type { GameDefinition, Seat } from './types.ts';
+import { listenOptions } from './owner.ts';
 
 export * from './types.ts';
 export * from './transitions.ts';
 export * from './rematch.ts';
+export * from './owner.ts';
 
 export interface Connection {
   db: Firestore;
@@ -83,7 +85,7 @@ export function watchOpenMatches(
   onChange: (matches: OpenMatch[]) => void,
 ): Unsubscribe {
   const open = query(collection(db, collectionId), where('status', '==', 'waiting'));
-  return onSnapshot(open, (snap) => {
+  return onSnapshot(open, listenOptions(), (snap) => {
     const matches = snap.docs.map((d) => ({
       id: d.id,
       host: d.data().host as string,
@@ -131,7 +133,7 @@ export function watchMatch<S, M>(
   id: string,
   onChange: (view: MatchView<S> | null) => void,
 ): Unsubscribe {
-  return onSnapshot(doc(db, def.id, id), (snap) => {
+  return onSnapshot(doc(db, def.id, id), listenOptions(), (snap) => {
     if (!snap.exists()) return onChange(null);
     const data = snap.data() as MatchDoc;
     onChange({ id, doc: data, state: def.fromFields(data), seat: seatOf(data, auth.currentUser?.uid ?? '') });

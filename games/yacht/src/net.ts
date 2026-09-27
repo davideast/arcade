@@ -16,7 +16,7 @@ import {
   serverTimestamp,
   type Unsubscribe,
 } from 'firebase/firestore';
-import type { Connection } from '@games/turn-net';
+import { listenOptions, type Connection } from '@games/turn-net';
 import type { Category } from './scoring.ts';
 import {
   COLLECTION,
@@ -119,5 +119,5 @@ export async function payOwed(connection: Connection, id: string): Promise<void>
 }
 
 export function watchYacht(connection: Connection, id: string, onChange: (m: YachtMatch | null) => void): Unsubscribe {
-  return onSnapshot(doc(connection.db, matchPath(id)), (snap) => onChange(snap.exists() ? (snap.data() as YachtMatch) : null));
+  return onSnapshot(doc(connection.db, matchPath(id)), listenOptions(), (snap) => onChange(snap.exists() ? (snap.data() as YachtMatch) : null));
 }

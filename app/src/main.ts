@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import '@fontsource/silkscreen/400.css';
 import { createPixelGame, css } from '@games/kit';
-import { connect, signIn } from '@games/turn-net';
+import { connect, setListenerOwner, signIn } from '@games/turn-net';
 import { ArcadeScene } from './arcade-scene.ts';
 import { BootScene } from './boot-scene.ts';
 import { connectOptions, firebaseOptions } from './firebase-config.ts';
@@ -16,7 +16,10 @@ const scenes: Phaser.Types.Scenes.SceneType[] = [
   ArcadeScene,
   ...GAMES.flatMap((g) => (g.scene ? [g.scene] : [])),
 ];
-const game = createPixelGame(document.getElementById('stage')!, scenes, css('ink'));
+const stage = document.getElementById('stage')!;
+// Pyric outlines each listener's owner; every listener in the arcade draws into this element's canvas.
+setListenerOwner(stage);
+const game = createPixelGame(stage, scenes, css('ink'));
 game.registry.set('connection', connection);
 game.registry.set('uid', user.uid);
 
