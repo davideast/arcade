@@ -50,8 +50,9 @@ R
 echo '<script type="module" src="/src/main.ts"></script>' > "$DIR/app/index.html"
 echo "import { initializeApp } from 'firebase/app'; initializeApp({ projectId: 'demo' });" > "$DIR/app/src/main.ts"
 
-# The socket client. It speaks the page's framing (websocket-connection.ts):
-# attach, appConfig, then worker-message frames carrying worker port messages.
+# The socket client. Step 1 speaks the page's framing directly (attach,
+# appConfig, then worker-message frames) to fill history; step 2 uses the
+# page's own hosted client from @pyric/cli/serve/worker.
 cat > "$DIR/client.ts" <<'TS'
 const url = process.argv[2]!;
 
@@ -86,32 +87,25 @@ await new Promise<void>((resolve) => {
 });
 writer.close();
 
-// 2. Attach a second socket and open four event subscriptions, as a hosted page does
-//    (runtime status, chip capture, chip traffic, chip listeners).
-const ws = await attach();
-const batches: number[] = [];
-let bytes = 0;
-ws.onmessage = (e) => {
-  const s = String(e.data);
-  bytes += s.length;
-  const m = JSON.parse(s);
-  if (m.message?.t === 'event') batches.push(m.message.events.length);
-};
-for (let i = 1; i <= 4; i++) {
-  ws.send(JSON.stringify({ type: 'worker-message', message: { t: 'sub', subId: `events-${i}`, target: 'events' } }));
+// 2. Connect the way a hosted page does, with the page's own client, and
+//    subscribe to events four times (runtime status, chip capture, chip traffic,
+//    chip listeners). Count how often the connection is interrupted.
+const { getHostedFirestore, subscribeEvents } = await import('@pyric/cli/serve/worker');
+const states: string[] = [];
+// The page reads its project key from the dev server's init payload.
+const init = await (await fetch(new URL('/__pyric/init.json', url.replace(/^ws/, 'http')))).json() as { projectKey: string };
+const db = getHostedFirestore({ url, projectKey: init.projectKey, onConnection: (state: string) => states.push(state), onError: (error: Error) => console.log(`client error: ${error.message}`) });
+// The page's app initialization sends this first; the host needs it before serving.
+db.port.postMessage({ t: 'appConfig', options: { projectId: 'demo', apiKey: 'k', appId: 'a' } });
+const firsts: number[] = [];
+for (let i = 0; i < 4; i++) {
+  subscribeEvents(db, (events: readonly unknown[]) => { if (firsts[i] === undefined) firsts[i] = events.length; });
 }
-const closed = await new Promise<{ code: number; reason: string } | null>((resolve) => {
-  ws.onclose = (e) => resolve({ code: e.code, reason: e.reason });
-  setTimeout(() => resolve(null), 5000);
-});
-console.log(`history batches received: ${batches.length} (events per batch: ${batches.join(', ') || 'none'}), ${(bytes / 1024 / 1024).toFixed(2)} MiB`);
-if (closed) {
-  console.log(`socket closed: ${closed.code} ${closed.reason}`);
-  process.exit(closed.code === 1013 ? 1 : 2);
-}
-console.log('socket still open after 5 s');
-ws.close();
-process.exit(batches.length === 4 ? 0 : 2);
+await new Promise((resolve) => setTimeout(resolve, 5000));
+const interruptions = states.filter((state) => state === 'interrupted').length;
+console.log(`history received by ${firsts.filter((n) => n !== undefined).length} of 4 subscribers (events: ${firsts.join(', ') || 'none'})`);
+console.log(`connection interrupted ${interruptions} times in 5 s`);
+process.exit(interruptions > 0 ? 1 : firsts.filter((n) => n !== undefined).length === 4 ? 0 : 2);
 TS
 
 (cd "$DIR" && bun install > install.log 2>&1)

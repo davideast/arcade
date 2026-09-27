@@ -19,7 +19,7 @@ From the repository root:
 bash bugs/repro/0009.sh
 ```
 
-The script builds a fresh Bun workspace in a temp directory with `pyric({ hosted: true })` and the vendored tarballs, starts Vite on port 5396, and runs a Bun WebSocket client that speaks the page's framing (`attach`, `appConfig`, then `worker-message` frames). The client writes 60 documents of 100 KB to fill the history, attaches a second socket, sends four `{ t: 'sub', target: 'events' }` messages as the page does, and reports how the socket ends.
+The script builds a fresh Bun workspace in a temp directory with `pyric({ hosted: true })` and the vendored tarballs, starts Vite on port 5396, and fills the history with 60 writes of 100 KB documents over a socket that speaks the page's framing. It then connects with the page's own hosted client (`getHostedFirestore` from `@pyric/cli/serve/worker`, with the project key from `/__pyric/init.json`), calls `subscribeEvents` four times as a hosted page does, and counts how often the connection is interrupted in 5 s. It exits 1 on any interruption and 0 when all four subscribers receive the history on a steady connection.
 
 In the arcade (`app/`, port 5391), the browser shows the loop directly: 13 reconnect cycles in 15 s idle and 97 in about 100 s of play. Each connection receives about 25 MB in 5 messages (four history batches of 2,866 events, about 8.38 MB each, are queued), then closes with:
 
@@ -35,12 +35,21 @@ A page receives its history on every event subscription and the socket stays ope
 
 ## Actual
 
+On local-4 (Pyric main 87a5303e):
+
 ```text
-history batches received: 3 (events per batch: 28, 28, 28), 23.80 MiB
-socket closed: 1013 Client output backlog exceeds 24 MiB; reconnect to resume.
+history received by 3 of 4 subscribers (events: 28, 28, 28)
+connection interrupted 23 times in 5 s
 ```
 
-Three 7.93 MiB replays fit under 24 MiB; the fourth does not. With one subscription on the same history the socket stays open (1 batch, 7.93 MiB).
+Three 7.93 MiB replays fit under 24 MiB; the fourth does not, the host closes the socket with 1013 "Client output backlog exceeds 24 MiB; reconnect to resume.", and the client reconnects and resubscribes. With one subscription on the same history the socket stays open (1 batch, 7.93 MiB).
+
+The fix in Pyric PR #777 (one event subscription per port) gives, on a build of that branch:
+
+```text
+history received by 4 of 4 subscribers (events: 28, 28, 28, 28)
+connection interrupted 0 times in 5 s
+```
 
 ## Suspected cause
 
