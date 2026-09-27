@@ -10,6 +10,8 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0012 to 0018 were found on local-5 building Air Hockey, the first game on the Realtime Database, and are open; their repros exit 1 there.
 
+0019 was found on local-5 building Sokoban, the first game on Cloud Storage, and is open; its repro exits 1 there.
+
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
 | [0001](0001-let-bound-member-method-rejected-by-resolver.md) | In a module, a method on a field of a get()/getAfter() document (or a let or parameter bound to one) is rejected | blocker | pyric | fixed (#768) |
@@ -30,3 +32,4 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0016](0016-rtdb-lint-hardcoded-false-positive-and-origin.md) | RTDB lint reports any boolean literal as a hardcoded rule, and gives every issue origin 'validate' | minor | pyric | open |
 | [0017](0017-rtdb-definition-simulate-recompiles-per-case.md) | `simulate` on a TypeScript RTDB definition compiles the definition for every case, about 100 times slower than JSON | minor | pyric | open |
 | [0018](0018-rtdb-simulate-unsupported-for-denied-request.md) | RTDB `simulate` reports UNSUPPORTED instead of DENY when the deepest rules node on the path has no rule of the request's kind | minor | pyric | open |
+| [0019](0019-storage-rules-string-plus-is-undefined.md) | In Storage rules, `+` on two strings (or two lists) evaluates to undefined, so a built path compared with `==` denies and with `!=` allows every request | major | pyric | open |
