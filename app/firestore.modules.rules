@@ -24,6 +24,9 @@ import { checkersCreate, checkersJoin, checkersCancel, checkersMove, checkersRes
 import {
   yachtCreate, yachtJoin, yachtCancel, yachtStart, yachtCommit, yachtNonce, yachtReveal, yachtScore
 } from '../games/yacht/yacht';
+import {
+  reversiCreate, reversiJoin, reversiCancel, reversiMove, reversiPass, reversiResign
+} from '../games/reversi/reversi';
 import { rematchCreate } from '../packages/turn-net/rematch';
 
 service cloud.firestore {
@@ -115,6 +118,15 @@ service cloud.firestore {
       allow update: if request.resource.data.lastAction == 'nonce' && (yachtNonce());
       allow update: if request.resource.data.lastAction == 'reveal' && (yachtReveal());
       allow update: if request.resource.data.lastAction == 'score' && (yachtScore());
+    }
+    match /reversi/{matchId} {
+      allow read: if request.auth != null;
+      allow create: if reversiCreate();
+      allow delete: if reversiCancel();
+      allow update: if resource.data.status == 'waiting' && (reversiJoin());
+      allow update: if request.resource.data.lastMove.at != '' && request.resource.data.status in ['playing', 'won', 'draw'] && (reversiMove());
+      allow update: if request.resource.data.lastMove.at == '' && request.resource.data.status == 'playing' && (reversiPass());
+      allow update: if request.resource.data.status == 'resigned' && (reversiResign());
     }
     match /rematches/{game}/matches/{matchId} {
       allow read: if request.auth != null;

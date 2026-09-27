@@ -1,0 +1,147 @@
+rules_version = '2+modules';
+
+import { validCreate, validJoin, canCancel } from 'lobby';
+import { onlyFieldsChanged } from 'lifecycle';
+import { isMyTurn, turnFlipped } from 'turns';
+import { isPlaying, moveIncremented } from 'state';
+
+// Reversi match rules. The host plays dark ('d') and moves first; the guest
+// plays light ('l'). The match document follows the stdlib convention (host,
+// guest, currentTurn, status, winner, moveCount) plus board, prevBoard,
+// counts {d, l}, and lastMove {at, runs}.
+//
+// The board maps a square key to its disc: the rank then the file as digits,
+// '11' for a1 through '88' for h8. A step in a direction adds a fixed number
+// to the key (+1 east, +11 north-east, +10 north, +9 north-west, and their
+// negatives), and a step off the board lands on a key the map doesn't have
+// (file 0 or 9, rank 0 or 9, or a number outside 11..88).
+//
+// A move names its square (`at`) and, for each of the eight directions in
+// that order, its reach (`runs`): the number of opponent discs in an unbroken
+// line from the square. The rules check every direction from its reach alone,
+// so no check searches the board. They don't check a pass or the end of the
+// game, which need a search; the clients replay each write from prevBoard and
+// flag a pass by a player who had a move, or a game ended with moves left.
+
+function reversiStartBoard() {
+  return {
+    '81': '', '82': '', '83': '', '84': '', '85': '', '86': '', '87': '', '88': '',
+    '71': '', '72': '', '73': '', '74': '', '75': '', '76': '', '77': '', '78': '',
+    '61': '', '62': '', '63': '', '64': '', '65': '', '66': '', '67': '', '68': '',
+    '51': '', '52': '', '53': '', '54': 'd', '55': 'l', '56': '', '57': '', '58': '',
+    '41': '', '42': '', '43': '', '44': 'l', '45': 'd', '46': '', '47': '', '48': '',
+    '31': '', '32': '', '33': '', '34': '', '35': '', '36': '', '37': '', '38': '',
+    '21': '', '22': '', '23': '', '24': '', '25': '', '26': '', '27': '', '28': '',
+    '11': '', '12': '', '13': '', '14': '', '15': '', '16': '', '17': '', '18': ''
+  };
+}
+
+// One direction of a move at key `p`, stepping by `s`, with reach `n` (an
+// integer 0..7, checked by the caller): the n squares from p are the
+// opponent's, and the square past them is not. The run flips when that
+// square holds the mover's disc: its squares then hold the mover's disc
+// after the move, and otherwise keep the opponent's. Returns the number of
+// discs flipped, or -100 when the direction is wrong, which makes the move's
+// total negative. The square checks nest, so a direction stops at its reach.
+function reversiRay(b, a, p, s, n, me, op) {
+  let end = b.get(string(p + (n + 1) * s), '');
+  let v = n > 0 && end == me ? me : op;
+  return (end != op
+    && (n < 1 || (b[string(p + s)] == op && (v == op || a[string(p + s)] == me)
+    && (n < 2 || (b[string(p + 2 * s)] == op && (v == op || a[string(p + 2 * s)] == me)
+    && (n < 3 || (b[string(p + 3 * s)] == op && (v == op || a[string(p + 3 * s)] == me)
+    && (n < 4 || (b[string(p + 4 * s)] == op && (v == op || a[string(p + 4 * s)] == me)
+    && (n < 5 || (b[string(p + 5 * s)] == op && (v == op || a[string(p + 5 * s)] == me)
+    && (n < 6 || (b[string(p + 6 * s)] == op && (v == op || a[string(p + 6 * s)] == me)
+    && (n < 7 || (b[string(p + 7 * s)] == op && (v == op || a[string(p + 7 * s)] == me))))))))))))))))
+    ? (v == me ? n : 0) : -100;
+}
+
+// The result a document claims agrees with its disc counts: play goes on
+// with no winner and a square left, a draw has equal counts, and a win goes
+// to the side with more discs.
+function reversiResult(d) {
+  return d.status == 'playing'
+    ? d.winner == '' && d.counts.d + d.counts.l < 64
+    : (d.status == 'draw'
+      ? d.winner == '' && d.counts.d == d.counts.l
+      : d.counts.d != d.counts.l && d.winner == (d.counts.d > d.counts.l ? 'host' : 'guest'));
+}
+
+export function reversiCreate() {
+  return validCreate()
+    && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
+         'board', 'prevBoard', 'lastMove', 'counts', 'createdAt'])
+    && request.resource.data.currentTurn == 'host'
+    && request.resource.data.winner == ''
+    && request.resource.data.moveCount == 0
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.board == reversiStartBoard()
+    && request.resource.data.prevBoard == reversiStartBoard()
+    && request.resource.data.lastMove == {'at': '', 'runs': []}
+    && request.resource.data.counts == {'d': 2, 'l': 2};
+}
+
+export function reversiJoin() {
+  return validJoin() && onlyFieldsChanged(['guest', 'status']);
+}
+
+export function reversiCancel() {
+  return canCancel();
+}
+
+// One disc placed by the player on turn. Every direction is checked, the
+// directions flip at least one disc between them, and the board changes on
+// exactly the placed square and the flipped discs. `status` and `winner`
+// follow the claim, checked against the counts.
+export function reversiMove() {
+  let b = resource.data.board;
+  let a = request.resource.data.board;
+  let at = request.resource.data.lastMove.at;
+  let p = int(at);
+  let me = resource.data.currentTurn == 'host' ? 'd' : 'l';
+  let op = resource.data.currentTurn == 'host' ? 'l' : 'd';
+  let r = request.resource.data.lastMove.runs;
+  // A direction with reach 0 needs only its first square not to be the
+  // opponent's, checked here without the cost of a call.
+  let total = (r[0] == 0 ? (b.get(string(p + 1), '') != op ? 0 : -100) : reversiRay(b, a, p, 1, r[0], me, op))
+    + (r[1] == 0 ? (b.get(string(p + 11), '') != op ? 0 : -100) : reversiRay(b, a, p, 11, r[1], me, op))
+    + (r[2] == 0 ? (b.get(string(p + 10), '') != op ? 0 : -100) : reversiRay(b, a, p, 10, r[2], me, op))
+    + (r[3] == 0 ? (b.get(string(p + 9), '') != op ? 0 : -100) : reversiRay(b, a, p, 9, r[3], me, op))
+    + (r[4] == 0 ? (b.get(string(p - 1), '') != op ? 0 : -100) : reversiRay(b, a, p, -1, r[4], me, op))
+    + (r[5] == 0 ? (b.get(string(p - 11), '') != op ? 0 : -100) : reversiRay(b, a, p, -11, r[5], me, op))
+    + (r[6] == 0 ? (b.get(string(p - 10), '') != op ? 0 : -100) : reversiRay(b, a, p, -10, r[6], me, op))
+    + (r[7] == 0 ? (b.get(string(p - 9), '') != op ? 0 : -100) : reversiRay(b, a, p, -9, r[7], me, op));
+  let c = request.resource.data.counts;
+  return request.auth != null && isPlaying() && isMyTurn() && turnFlipped() && moveIncremented()
+    && request.resource.data.lastMove.keys().hasOnly(['at', 'runs'])
+    && r.size() == 8
+    && r.hasOnly([0, 1, 2, 3, 4, 5, 6, 7])
+    && b[at] == ''
+    && a[at] == me
+    && total > 0
+    && a.diff(b).affectedKeys().size() == total + 1
+    && request.resource.data.prevBoard == b
+    && c.size() == 2
+    && c[me] == resource.data.counts[me] + total + 1
+    && c[op] == resource.data.counts[op] - total
+    && reversiResult(request.resource.data)
+    && onlyFieldsChanged(['board', 'prevBoard', 'lastMove', 'counts', 'currentTurn', 'moveCount', 'status', 'winner']);
+}
+
+// A pass by the player on turn: the board stays, the turn goes over. Whether
+// the player had a move is for the replay.
+export function reversiPass() {
+  return request.auth != null && isPlaying() && isMyTurn() && turnFlipped() && moveIncremented()
+    && request.resource.data.lastMove == {'at': '', 'runs': []}
+    && request.resource.data.prevBoard == resource.data.board
+    && onlyFieldsChanged(['prevBoard', 'lastMove', 'currentTurn', 'moveCount']);
+}
+
+export function reversiResign() {
+  let uid = request.auth.uid;
+  return request.auth != null && isPlaying()
+    && (uid == resource.data.host || uid == resource.data.guest)
+    && onlyFieldsChanged(['status', 'winner'])
+    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+}

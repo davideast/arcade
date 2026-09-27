@@ -21,7 +21,7 @@ function playedIn(game, d) {
 export function rematchCreate(db, game, id) {
   let next = request.resource.data.match;
   return request.auth != null
-    && game in ['tictactoe', 'uno', 'pool', 'battleship', 'chess', 'checkers', 'yacht']
+    && game in ['tictactoe', 'uno', 'pool', 'battleship', 'chess', 'checkers', 'yacht', 'reversi']
     && request.resource.data.keys().hasOnly(['game', 'match', 'by'])
     && request.resource.data.game == game
     && request.resource.data.by == request.auth.uid
