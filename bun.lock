@@ -22,6 +22,7 @@
     "app": {
       "name": "@games/app",
       "dependencies": {
+        "@games/air-hockey": "workspace:*",
         "@games/battleship": "workspace:*",
         "@games/checkers": "workspace:*",
         "@games/chess": "workspace:*",

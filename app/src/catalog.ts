@@ -14,6 +14,7 @@ import { ChessScene, createChess, joinChess } from '@games/chess';
 import { CheckersScene, createCheckers, joinCheckers } from '@games/checkers';
 import { YachtScene, createYacht, joinYacht } from '@games/yacht';
 import { ReversiScene, createReversi, joinReversi } from '@games/reversi';
+import { AirHockeyScene, createAirHockey, joinAirHockey } from '@games/air-hockey';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
@@ -22,6 +23,7 @@ import chessSheet from '../../MASFunPack/AllGames/ChessSpriteSheet.png?url';
 import checkersSheet from '../../MASFunPack/AllGames/CheckersSpriteSheet.png?url';
 import yachtSheet from '../../MASFunPack/AllGames/YachtSpriteSheet.png?url';
 import reversiSheet from '../../MASFunPack/AllGames/ReversiSpriteSheet.png?url';
+import airHockeySheet from '../../MASFunPack/AllGames/AirHockeySpriteSheet.png?url';
 
 export interface ArcadeGame {
   id: string;
@@ -126,6 +128,17 @@ export const GAMES: ArcadeGame[] = [
     seats: twoSeats,
     create: (c) => createReversi(c),
     join: (c, id) => joinReversi(c, id),
+  },
+  {
+    id: 'airhockey',
+    title: 'Air Hockey',
+    sheetKey: 'sheet-airhockey',
+    sheetUrl: airHockeySheet,
+    players: '2',
+    scene: AirHockeyScene,
+    seats: twoSeats,
+    create: (c) => createAirHockey(c),
+    join: (c, id) => joinAirHockey(c, id),
   },
 ];
 
