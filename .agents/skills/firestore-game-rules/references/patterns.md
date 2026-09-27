@@ -202,7 +202,7 @@ Every move rule must also require `isServerTimestamp('lastMoveAt')` and list `la
 
 Rules can't roll dice, but they can make a roll fair. The roller commits `sha256(salt)` first; every other player then adds a nonce; the roller reveals the salt last. Rules check the salt against the commitment with `hashing.sha256`, then derive the dice from `sha256(salt + nonces)` and require the stored dice to equal the derivation. No single player controls a roll: the roller commits before seeing the nonces, and the others choose nonces without seeing the salt.
 
-- Derive with operations rules have: take hex characters of the digest, skip the ones that would bias the result (Yacht drops `c` to `f` and maps each remaining digit `v` to `v % 6 + 1`), and state the derivation in the module header.
+- Derive with operations rules have: take hex characters of the digest, skip the ones that would bias the result (Yacht takes the uppercase hex digest, drops `C` to `F`, and maps each remaining digit `v`, 0 to 11, to `v % 6 + 1`), and state the derivation in the module header.
 - Kept dice are a list of positions; a reroll may change only the others, and the roll count caps at three.
 - A roller who refuses to reveal stalls the match but can't reroll. Pair it with a turn clock if stalling matters.
 - Cheats to test: a reveal that doesn't match its commitment, dice that don't match the derivation, a different salt with its own derived dice, a nonce written for another seat, a changed kept die, a fourth roll.
