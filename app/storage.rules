@@ -17,8 +17,12 @@ rules_version = '2';
 //     metadata's counts equal the score's (so the metadata carries the counts
 //     the Firestore rules checked), and the size equals the score's move
 //     count.
-// Only create is granted: an object is never replaced or deleted, so a move
-// list stays as it was scored. Anyone signed in may read, so every client can
+// Only create is granted, so an object is never deleted or has its metadata
+// changed. Production evaluates an upload over an existing object as create,
+// and a rule can't test that the object is absent (`resource == null` errors
+// when it is), so the owner can upload over their own object; the upload must
+// pass the same checks, and a move list that doesn't solve the level is
+// flagged by the replay. Anyone signed in may read, so every client can
 // replay every leaderboard entry.
 //
 // The Firestore lookup reads the (default) database; production's

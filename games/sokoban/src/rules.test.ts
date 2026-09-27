@@ -29,7 +29,7 @@
 import { describe, expect, test } from 'bun:test';
 import { initializeSandbox } from 'pyric/sandbox';
 import { FieldValue, getFirestore } from 'pyric-admin/firestore';
-import { deleteObject, getBytes, getMetadata, getStorageSandbox, listAll, ref, uploadString, type FirebaseStorage } from 'pyric/storage';
+import { deleteObject, getBytes, getMetadata, getStorageSandbox, listAll, ref, updateMetadata, uploadString, type FirebaseStorage } from 'pyric/storage';
 import { getAdminStorageSandbox } from 'pyric/storage/internal';
 import { LEVELS } from './levels.ts';
 import { replay } from './sokoban.ts';
@@ -296,8 +296,15 @@ describe('Sokoban Firestore and Storage rules', () => {
     await world.denied('an upload under the level of another score', up('alice-uid', { ...real.upload, path: real.upload.path.replace('/2/', '/1/') }));
 
     await world.allowed('the real upload', up('alice-uid', real.upload));
-    await world.denied('alice overwrites her solve', up('alice-uid', real.upload));
+    // An upload over an existing object is a create in production, so the owner can upload it again.
+    await world.allowed('alice uploads her solve again', up('alice-uid', real.upload));
     await world.denied("bob overwrites alice's solve", up('bob-uid', real.upload));
+    // A move list of the same length that solves nothing passes the rules and is flagged by the replay.
+    await world.allowed('alice overwrites her solve with moves that solve nothing', up('alice-uid', { ...real.upload, text: 'l'.repeat(moves.length) }));
+    if ((await world.verify('carol-uid', '2', 'alice-uid')).ok) world.failures.push('the replay missed an overwritten move list');
+    await world.allowed('alice restores her solve', up('alice-uid', real.upload));
+    await world.denied('alice changes her solve\'s metadata', () =>
+      updateMetadata(ref(world.storage('alice-uid'), real.upload.path), { customMetadata: real.upload.customMetadata }));
     await world.denied('alice deletes her solve', () => deleteObject(ref(world.storage('alice-uid'), real.upload.path)));
     await world.denied("bob deletes alice's solve", () => deleteObject(ref(world.storage('bob-uid'), real.upload.path)));
     await world.allowed("bob reads alice's solve", () => getBytes(ref(world.storage('bob-uid'), real.upload.path)));
