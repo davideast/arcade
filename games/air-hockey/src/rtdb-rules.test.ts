@@ -91,14 +91,6 @@ describe('Air Hockey Realtime Database rules (TypeScript definition)', () => {
       newData: { guest: 'guest-uid', status: 'playing', winner: '' },
     });
     const summary = airHockeyRtdbRules.simulate(cases);
-    // A denial decided above a node with no rule of its own comes back
-    // UNSUPPORTED instead of DENY (bugs/0018): the two writes to a puck coordinate.
-    const noRule = (c: (typeof summary.cases)[number]) =>
-      c.expectation === 'DENY' && c.decision === 'UNSUPPORTED' && /No 'write' rule found/.test(c.reason);
-    expect(summary.cases.filter((c) => !c.passed && !noRule(c)).map((c) => `${c.description}: ${c.decision} (${c.reason})`)).toEqual([]);
-    expect(summary.cases.filter(noRule).map((c) => c.description)).toEqual([
-      'the host moves the puck without a new tick',
-      'the host moves the puck off the table',
-    ]);
+    expect(summary.cases.filter((c) => !c.passed).map((c) => `${c.description}: ${c.decision} (${c.reason})`)).toEqual([]);
   });
 });

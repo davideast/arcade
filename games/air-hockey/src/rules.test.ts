@@ -21,17 +21,17 @@
  * Removal probes (.overnight/probe-airhockey-rtdb.ts over the TypeScript
  * constraints through tools/removal-probe-rtdb.ts, 124 clauses; and
  * .overnight/probe-airhockey-fs.ts over airhockey.rules and its gates, 49
- * checks): 98 and 45 caught. The rest are implied by other checks.
- * Realtime Database (26):
+ * checks): 101 and 45 caught. The rest are implied by other checks.
+ * Realtime Database (23):
  *   - malletIn's required x and y (3): each lower bound (at least 4.5)
  *     fails for a missing coordinate.
  *   - `authenticated()` in isHost, isGuestAt, the match read and the meta
  *     write (4): a signed-out request's auth.uid is null and never equals
  *     $host or meta's guest.
- *   - newDataExists() on the host nodes, meta and guestMallet (3): a deleted
- *     node fails its required() children.
- *   - meta's required(), required status and winner, and the known status
- *     and winner lists (5): create pins 'playing' and '', and each ending
+ *   - newDataExists() on meta (1): a deleted meta fails the status checks
+ *     of both create and every ending.
+ *   - meta's required status and winner, and the known status and winner
+ *     lists (4): create pins 'playing' and '', and each ending
  *     pins its status and winner.
  *   - metaOver's host check and its status 'over' (2): only the host writes
  *     the score, and a score that reaches 7 must close meta as 'over' in the
@@ -139,8 +139,6 @@ class Match {
   /** Sandbox verdicts that `simulate` disagreed with. */
   readonly disagreements: string[] = [];
   simulated = 0;
-  /** Denials `simulate` reports as unsupported (bugs/0018). */
-  noRule = 0;
 
   constructor(readonly id: string) {
     getFirestore(this.sandbox.withAuth({ uid: 'admin', token: { admin: true } })).setRules(firestoreRules);
@@ -224,16 +222,10 @@ class Match {
     this.record(label, result, allowed);
   }
 
-  /**
-   * Count a `simulate` verdict against the sandbox's. A denial `simulate`
-   * reports as unsupported because no rule sits at the requested path
-   * (bugs/0018) is counted apart; any other difference is a disagreement.
-   */
+  /** Count a `simulate` verdict against the sandbox's; any difference is a disagreement. */
   private record(label: string, result: { passed: boolean; decision: string; reason: string }, allowed: boolean): void {
     this.simulated++;
-    if (result.passed) return;
-    if (!allowed && result.decision === 'UNSUPPORTED' && /No '(read|write)' rule found/.test(result.reason)) this.noRule++;
-    else this.disagreements.push(`${label}: sandbox ${allowed ? 'ALLOW' : 'DENY'}, simulate ${result.decision} (${result.reason})`);
+    if (!result.passed) this.disagreements.push(`${label}: sandbox ${allowed ? 'ALLOW' : 'DENY'}, simulate ${result.decision} (${result.reason})`);
   }
 
   private db(who: Who | Database): Database {
@@ -653,8 +645,7 @@ async function playMatch(late: boolean): Promise<Match> {
   await m.deniedFs('a forfeit after the result', 'guest', forfeitOps(m.id, 'guest', { host: 0, guest: 0 }));
   await m.deniedFs('resign after the result', 'guest', [{ type: 'update', path: m.path, data: { status: 'resigned', winner: 'host' } }]);
   console.log(`${label}: ${world.score.host} to ${world.score.guest} at tick ${world.tick}, ${frames} frames; `
-    + `simulate agreed with the sandbox on ${m.simulated - m.disagreements.length - m.noRule} of ${m.simulated} cases, `
-    + `${m.noRule} denials it reports as unsupported (bugs/0018)`);
+    + `simulate agreed with the sandbox on ${m.simulated - m.disagreements.length} of ${m.simulated} cases`);
   return m;
 }
 
