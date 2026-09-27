@@ -6,7 +6,7 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0009 was found on local-4 and is fixed on Pyric main 9c125203, vendored here as local-5; its repro exits 0 there.
 
-0010 was found on local-5 (Pyric main 9c125203) and is open; its repro exits 1 there.
+0010 and 0011 were found on local-5 (Pyric main 9c125203) and are open; their repros exit 1 there.
 
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
@@ -20,3 +20,4 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0008](0008-failed-reload-never-watches-new-modules.md) | After a rules reload fails, modules the new source imports are never watched; fixing them doesn't reload | major | @pyric/cli | fixed (#775) |
 | [0009](0009-hosted-event-replays-exceed-socket-backlog.md) | In hosted mode, four event-history replays exceed the 24 MiB socket backlog; every page reconnects about once a second | major | @pyric/cli | fixed (#777) |
 | [0010](0010-lint-ignores-let-bindings-for-sec-3-and-sec-6.md) | Lint SEC-6 and SEC-3 ignore a called function's let bindings, so data or auth read through a let is reported as unchecked | minor | pyric | open |
+| [0011](0011-studio-auth-direct-load-exceeds-operation-budget.md) | In hosted Studio, a direct load of the Auth page sends one request per history event and shows "This client already has 256 pending operations." | major | @pyric/studio | open |
