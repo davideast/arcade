@@ -10,6 +10,21 @@
  *
  * The rules can't replay a move list: a well-formed score and upload whose
  * moves don't solve the level is allowed, and verifyEntry must flag it.
+ *
+ * Removal probes (.overnight/probe-sokoban.ts, tools/removal-probe.ts): 36
+ * probes, each a check removed or a missing grant added (delete or update of
+ * a score, update or delete of an object).
+ *   Firestore, 23: 21 caught. The 2 not caught are implied:
+ *   - `request.auth != null` in sokobanScore: the next check reads
+ *     request.auth.uid, which errors without auth, so the rule denies.
+ *   - `level in sokobanLevels()`: `sokobanLevels()[level]` is read for the
+ *     count minimums, and a level the map doesn't have errors there.
+ *   Storage, 13: 11 caught. The 2 not caught are implied:
+ *   - `request.auth != null` in sokobanUpload: request.auth.uid errors
+ *     without auth, as above.
+ *   - `request.resource.size <= 2000`: the size must equal the score's move
+ *     count, which the Firestore rules cap at 2,000. It stays as the bound
+ *     that holds on its own if the score check ever changes.
  */
 import { describe, expect, test } from 'bun:test';
 import { initializeSandbox } from 'pyric/sandbox';
@@ -232,6 +247,10 @@ describe('Sokoban Firestore and Storage rules', () => {
     const longer = solveWrites('alice-uid', '1', solveId(), detour('1'));
     await world.denied('a score with more moves', put('alice-uid', longer.score.data as unknown as Data));
     await world.denied('a score with as many moves and more pushes', put('alice-uid', scoreWith(again, { pushes: 9, object: again.score.data.object.replace('-33-8', '-33-9') })));
+    // Fewer pushes improve only on as many moves: 20/5 on level 2, then 30/4.
+    const bobLevel2 = (m: number, p: number) => ({ uid: 'bob-uid', level: '2', moves: m, pushes: p, solve: real.score.data.solve, object: `sokoban/bob-uid/2/${real.score.data.solve}-${m}-${p}.txt` });
+    await world.allowed('bob claims 20 moves and 5 pushes on level 2', put('bob-uid', bobLevel2(20, 5), scorePath('2', 'bob-uid')));
+    await world.denied('a score with more moves and fewer pushes', put('bob-uid', bobLevel2(30, 4), scorePath('2', 'bob-uid')));
     await world.denied("another user replaces alice's score", put('bob-uid', { ...again.score.data, moves: 34, object: again.score.data.object.replace('-33-8', '-34-8') }));
     await world.denied('an improvement with a client clock', () => world.db('alice-uid').doc(real.score.path).set({ ...real.score.data, moves: 20, createdAt: new Date() }));
     await world.denied('alice deletes her score', () => world.db('alice-uid').doc(real.score.path).delete());
