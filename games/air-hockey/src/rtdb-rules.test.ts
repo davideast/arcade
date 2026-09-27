@@ -34,26 +34,12 @@ const read = (description: string, expectation: Expect, auth: string | null, pat
   ({ description, expectation, operation: 'read', path: `${M}${path}`, auth, data: playing });
 
 describe('Air Hockey Realtime Database rules (TypeScript definition)', () => {
-  test('lint finds no errors; its warnings are the deny-all nodes and one false positive', () => {
+  test("lint finds no errors; its warnings are the root's deny-all rules", () => {
     const issues = airHockeyRtdbRules.lint();
     expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
-    // Every warning is HARDCODED_FALSE: the root's `.read`/`.write` and each `$other`
-    // are `false` on purpose; meta's `.write` compares presence to `false`, which
-    // the linter reports as a hardcoded rule (bugs/0016).
+    // The root's `.read` and `.write` are `false` on purpose.
     const warned = issues.map((i) => `${i.code} ${i.path}`).sort();
-    expect(warned).toEqual([
-      'HARDCODED_FALSE /',
-      'HARDCODED_FALSE /',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/frame/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/frame/guest/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/frame/host/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/frame/puck/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/guestMallet/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/meta',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/meta',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/meta/$other',
-      'HARDCODED_FALSE /airhockey/$matchId/$host/score/$other',
-    ]);
+    expect(warned).toEqual(['HARDCODED_FALSE /', 'HARDCODED_FALSE /']);
   });
 
   test('simulate: one write of each kind', () => {
