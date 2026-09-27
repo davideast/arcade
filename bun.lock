@@ -34,6 +34,19 @@
         "@games/yacht": "workspace:*",
       },
     },
+    "games/air-hockey": {
+      "name": "@games/air-hockey",
+      "dependencies": {
+        "@games/kit": "workspace:*",
+        "@games/turn-net": "workspace:*",
+      },
+      "devDependencies": {
+        "@games/harness": "workspace:*",
+      },
+      "peerDependencies": {
+        "phaser": "4.2.1",
+      },
+    },
     "games/battleship": {
       "name": "@games/battleship",
       "dependencies": {
@@ -309,6 +322,8 @@
     "@firebase/webchannel-wrapper": ["@firebase/webchannel-wrapper@1.0.7", "", {}, "sha512-phBFwieDLvkZGYN9CE9ZFNEIoBVksprzsnCzQejCmCHtgwCXReeuRpoEGN9C4EbhONztv8NRV1tau6Rb9pONwQ=="],
 
     "@fontsource/silkscreen": ["@fontsource/silkscreen@5.3.0", "", {}, "sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA=="],
+
+    "@games/air-hockey": ["@games/air-hockey@workspace:games/air-hockey"],
 
     "@games/app": ["@games/app@workspace:app"],
 
