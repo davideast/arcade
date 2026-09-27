@@ -10,24 +10,19 @@
  * game marked over has moves left: a forged pass and a false end are
  * allowed, and the replay (`verifyMove`) must flag them.
  *
- * Removal probes (.overnight/probe-reversi.ts, 83 checks): 73 caught. The 10
- * not caught are implied by other checks:
+ * Removal probes (tools/removal-probe.ts on each check, 70 checks): 62
+ * caught. The 8 not caught are implied by other checks:
  *   - `request.auth != null` in reversiMove, reversiPass and reversiResign:
  *     each also compares request.auth.uid (isMyTurn, or the participant
  *     check), which errors without auth, so the rule denies.
  *   - reversiPass `isPlaying()`: the pass gate requires the stored status
  *     after the write to be 'playing', and onlyFieldsChanged leaves status
  *     out, so the status before was 'playing' too.
- *   - reversiRay `n > 0` in the flip test: the ray is called only for a
- *     reach other than 0 (reach 0 is checked inline), and r.hasOnly keeps
- *     every reach at 0..7.
- *   - reversiRay square 7 after-check: a reach of 7 never flips. Seven
- *     opponent discs in a line from a square end at the board's edge, so the
- *     square past them is off the board and v is the opponent's disc.
- *   - Main gate `resource.data.status == 'waiting'` on join: validJoin
- *     checks the match is waiting.
- *   - Main gate `lastMove.at != ''` on a move: b[''] is not a key, so
- *     reversiMove errors and denies.
+ *   - reversiMove `r.hasOnly([0, ..., 7])`: each reach indexes its
+ *     direction's line of at most eight entries, so a reach that is not an
+ *     integer from 0 to the line's length errors and denies.
+ *   - Main gate `lastMove.at != ''` on a move: int('') and b[''] error, so
+ *     reversiMove denies.
  *   - Main gates `lastMove.at == ''` and `status == 'playing'` on a pass:
  *     reversiPass pins lastMove to {at: '', runs: []}, and its
  *     onlyFieldsChanged with isPlaying keeps status 'playing'.
@@ -35,6 +30,7 @@
  *   comparison, which keeps a write's evaluation cost to its own rule.
  */
 import { describe, expect, test } from 'bun:test';
+import { firestoreRules } from 'pyric/rules';
 import { initializeSandbox } from 'pyric/sandbox';
 import { FieldValue, getFirestore } from 'pyric-admin/firestore';
 import { mulberry32 } from '@games/harness';
@@ -161,6 +157,14 @@ class Match {
       await this.denied('create with a previous position', host, create({ ...fresh, prevBoard: { ...board, '34': 'd', '44': 'd' } }));
       await this.denied('create for someone else', host, create({ ...fresh, host: 'guest-uid' }));
       await this.denied('create by a stranger', this.stranger, create(fresh));
+      const full = fresh.full as { d: BoardMap; l: BoardMap };
+      await this.denied('create with a light disc in the full dark board', host, create({ ...fresh, full: { ...full, d: { ...full.d, '11': 'l' } } }));
+      await this.denied('create with a square missing from the full light board', host,
+        create({ ...fresh, full: { ...full, l: Object.fromEntries(Object.entries(full.l).filter(([k]) => k !== '11')) } }));
+      await this.denied('create with a full board keyed off the board', host,
+        create({ ...fresh, full: { ...full, d: { ...Object.fromEntries(Object.entries(full.d).filter(([k]) => k !== '11')), '19': 'd' } } }));
+      await this.denied('create with only the full dark board', host, create({ ...fresh, full: { d: full.d } }));
+      await this.denied('create with a third full board', host, create({ ...fresh, full: { ...full, x: full.d } }));
     }
     if (!(await this.allowed('create', this.dbFor.host, create(fresh)))) return;
     const joined = joinedMatch(this.stored(), 'guest-uid');
@@ -297,6 +301,10 @@ async function moveCheats(m: Match, doc: ReversiDoc, sq: number): Promise<void> 
     extra[bystander] = me;
     await m.denied('flip an extra opponent disc', db, forgedBoard(extra));
     await m.denied('flip an extra disc and keep the counts', db, patched(real, { board: toMap(extra) }));
+    const tally = counts(extra);
+    const result = up.status === 'playing' ? {}
+      : tally.d === tally.l ? { status: 'draw', winner: '' } : { status: 'won', winner: tally.d > tally.l ? 'host' : 'guest' };
+    await m.denied('flip an extra disc with counts that follow the board', db, patched(real, { board: toMap(extra), counts: tally, ...result }));
   }
   const own = before.findIndex((c) => c === me);
   if (own >= 0) {
@@ -483,7 +491,80 @@ async function playLine(id: string, line: Line): Promise<{ m: Match; passes: num
   return { m, passes };
 }
 
+/** The document before write `write` of the seeded random game, and the square it plays. */
+function randomGameWrite(seed: number, write: number): { doc: ReversiDoc; sq: number } {
+  const random = mulberry32(seed);
+  let doc = joinedMatch(createdMatch(reversi, 'host-uid'), 'guest-uid') as ReversiDoc;
+  while (doc.status === 'playing') {
+    const moves = legalMoves(positionOf(doc.board, doc.currentTurn));
+    const move = moves.length === 0 ? null : moves[Math.floor(random() * moves.length)];
+    if (doc.moveCount + 1 === write && move !== null) return { doc, sq: move };
+    doc = { ...doc, ...(move === null ? passUpdate(doc) : moveUpdate(doc, move)) } as ReversiDoc;
+  }
+  throw new Error(`seed ${seed} has no move at write ${write}`);
+}
+
+/** Expressions Pyric's simulator evaluates for the stored match's move at `sq`. */
+function simulatedCost(m: Match, sq: number): number {
+  const doc = JSON.parse(JSON.stringify(m.stored())) as ReversiDoc;
+  const after = { ...doc, ...moveUpdate(doc, sq) };
+  const [c] = firestoreRules(rules).simulate([{
+    description: 'budget', expectation: 'ALLOW', method: 'update', path: m.path,
+    auth: { uid: doc.currentTurn === 'host' ? 'host-uid' : 'guest-uid' }, resource: doc as never, data: after as never,
+  }]).cases;
+  if (c.decision !== 'ALLOW') throw new Error(`simulator denied the move: ${c.decision}`);
+  return c.trace.flatMap((t) => t.expressionTrace ?? []).filter((e) => !e.skipped).length;
+}
+
 describe('Reversi Security Rules', () => {
+  test('the rays table lists each square\'s squares to the edge in the order of runs[]', async () => {
+    const source = await Bun.file(new URL('../reversi.rules', import.meta.url)).text();
+    const table = /function reversiRays\(\) \{\s*return '([^']*)';/.exec(source)![1].split(' ');
+    const expected: string[] = [];
+    for (let key = 11; key <= 88; key++) {
+      const file = (key % 10) - 1;
+      const rank = Math.floor(key / 10);
+      for (const [df, dr] of DIRECTIONS) {
+        if (squareAt(file, rank) < 0) {
+          expected.push('x');
+          continue;
+        }
+        const line: string[] = [];
+        for (let k = 1; squareAt(file + k * df, rank + k * dr) >= 0; k++) line.push(squareKey(squareAt(file + k * df, rank + k * dr)));
+        expected.push([...line, 'x'].join('_'));
+      }
+    }
+    expect(table).toEqual(expected);
+  });
+
+  // Budget sentinels: the most expensive moves measured against production's
+  // limit of 1,000 evaluated expressions per request (Rules Test API, padding
+  // method). Every move costs 640 to 800 there, so the rule has about 200 to
+  // spare. A change to the move rule that raises these simulator counts needs
+  // a new production measurement.
+  test('the most expensive moves stay within the measured budget', async () => {
+    const failures: string[] = [];
+    const cases: { label: string; m: Match; sq: number; nodes: number }[] = [];
+    // Production 797 to 802: eight directions with reach, 17 in all, two of them flipping.
+    const worst = randomGameWrite(8, 54);
+    cases.push({ label: 'seed 8 write 54', m: await seeded('budget8', fromMap(worst.doc.board), worst.doc.currentTurn, worst.doc.moveCount), sq: worst.sq, nodes: 678 });
+    // Production 782 to 787: eight directions with reach, five of them flipping.
+    const next = randomGameWrite(33, 44);
+    cases.push({ label: 'seed 33 write 44', m: await seeded('budget33', fromMap(next.doc.board), next.doc.currentTurn, next.doc.moveCount), sq: next.sq, nodes: 678 });
+    // Production 767 to 772: c3 flips in all eight directions, 17 discs, and ends the game.
+    const board: Board = Array(64).fill('');
+    for (const k of ['34', '35', '36', '37', '44', '55', '66', '77', '43', '53', '63', '73', '42', '32', '22', '23', '24']) board[squareOfKey(k)] = 'l';
+    for (const k of ['38', '88', '83', '51', '31', '11', '13', '15']) board[squareOfKey(k)] = 'd';
+    cases.push({ label: 'c3 in eight directions', m: await seeded('budget-c3', board, 'host', 20), sq: squareOfKey('33'), nodes: 677 });
+    for (const { label, m, sq, nodes } of cases) {
+      const cost = simulatedCost(m, sq);
+      if (cost > nodes) failures.push(`${label}: ${cost} simulator expressions, above the measured ${nodes}`);
+      await m.allowed(label, m.dbFor[m.stored().currentTurn], moveOps(m.id, m.stored(), sq));
+      failures.push(...m.failures);
+    }
+    expect(failures).toEqual([]);
+  });
+
   test('two full games: real moves allowed, cheats denied', async () => {
     const failures: string[] = [];
     for (const seed of [1, 2]) {
