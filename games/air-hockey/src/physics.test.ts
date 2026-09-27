@@ -23,6 +23,7 @@ import {
   type World,
 } from './physics.ts';
 import { frameOf, frameOp, resultMatchesLive, type AirHockeyDoc } from './logic.ts';
+import { autopilot } from './autopilot.ts';
 
 const still = (w: World) => ({ host: w.host, guest: w.guest });
 
@@ -119,6 +120,30 @@ describe('air hockey physics', () => {
     const w = { ...initialWorld(), score: { host: WIN_SCORE, guest: 3 }, puck: { x: 48, y: 64, vx: 50, vy: 50 } };
     expect(winner(w.score)).toBe('host');
     expect(step(w, w.host, w.guest).world).toBe(w);
+  });
+
+  test('replay checks never flag an honest match, frame by frame as the host writes them', () => {
+    for (const seed of [3, 36]) {
+      let r = seed;
+      const random = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+      let world = initialWorld();
+      let plan = { host: { aim: 0, guard: 48 }, guest: { aim: 0, guard: 48 } };
+      let last = frameOf(world);
+      const flags: string[] = [];
+      while (!winner(world.score) && world.tick < 36000) {
+        if (world.tick % 60 === 0) plan = { host: { aim: random() * 2 - 1, guard: random() < 0.5 ? 8 : 88 }, guest: { aim: random() * 2 - 1, guard: random() < 0.5 ? 8 : 88 } };
+        const s = step(world, autopilot('host', world, plan.host), autopilot('guest', world, plan.guest));
+        world = s.world;
+        if (world.tick % 3 !== 0 && !s.goal) continue;
+        const frame = frameOf(world);
+        const ticks = frame.puck.t - last.puck.t;
+        const ok = s.goal ? plausibleGoal(last.puck, s.goal, frame.puck, ticks) : plausibleMove(last.puck, frame.puck, ticks);
+        if (!ok) flags.push(`seed ${seed} tick ${world.tick}`);
+        last = frame;
+      }
+      expect(winner(world.score)).not.toBeNull();
+      expect(flags).toEqual([]);
+    }
   });
 
   test('replay checks: a puck jump and a goal from mid-table are implausible', () => {

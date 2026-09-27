@@ -209,13 +209,14 @@ export function round2(v: number): number {
 
 /**
  * Whether the puck at `to`, `ticks` steps after `from`, could have got
- * there: it moves at most MAX_SPEED per second, plus a pixel of slack for
+ * there: in a step it moves at most MAX_SPEED / 60 on its own, plus as far
+ * as a mallet pushing it moved (MALLET_SPEED / 60), plus a pixel of slack for
  * rounding and bounces. A goal serves the puck, so a frame that carries a
  * new score is checked by `plausibleGoal` instead.
  */
 export function plausibleMove(from: Vec, to: Vec, ticks: number): boolean {
   if (ticks <= 0) return from.x === to.x && from.y === to.y;
-  const reach = MAX_SPEED * STEP * ticks + 1;
+  const reach = (MAX_SPEED + MALLET_SPEED) * STEP * ticks + 1;
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   return dx * dx + dy * dy <= reach * reach;
@@ -227,7 +228,7 @@ export function plausibleMove(from: Vec, to: Vec, ticks: number): boolean {
  * the mouth, and the new puck must be the serve.
  */
 export function plausibleGoal(last: Vec, scorer: Side, served: Puck, ticks: number): boolean {
-  const reach = MAX_SPEED * STEP * Math.max(ticks, 1) + 1;
+  const reach = (MAX_SPEED + MALLET_SPEED) * STEP * Math.max(ticks, 1) + 1;
   const toLine = scorer === 'host' ? last.y : TABLE.height - last.y;
   const expected = servedPuck(otherSide(scorer));
   const mouthX = clamp(last.x, GOAL_LEFT, GOAL_RIGHT);

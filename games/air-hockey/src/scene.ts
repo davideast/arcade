@@ -143,7 +143,7 @@ export class AirHockeyScene extends Phaser.Scene {
       host: this.add.image(0, 0, SHEET.key, 'mallet-host').setVisible(false),
       guest: this.add.image(0, 0, SHEET.key, 'mallet-guest').setVisible(false),
     };
-    this.hint = text(this, 144, 116, '', { color: 'lavender', wrap: 100 });
+    this.hint = text(this, 150, 110, '', { color: 'lavender', wrap: 92 });
     this.chrome.setStatus('Loading table');
 
     const aim = (p: Phaser.Input.Pointer) => {
@@ -445,7 +445,7 @@ export class AirHockeyScene extends Phaser.Scene {
       active: false,
       detail: doc.status === 'waiting' ? '' : `${score[s]}`,
     })));
-    const flagged = this.flags.length > 0 ? ` ${this.flags.join('. ')}.` : '';
+    const flagged = this.flags.length === 0 ? '' : ` ${this.flags[0]}${this.flags.length > 1 ? ` (+${this.flags.length - 1} more)` : ''}.`;
     const connection = this.connection();
     if (doc.status === 'waiting') {
       this.chrome.setStatus(seat === 'host' ? 'Waiting for an opponent to join' : 'Waiting to start');
