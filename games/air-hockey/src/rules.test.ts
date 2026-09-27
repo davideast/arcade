@@ -17,6 +17,36 @@
  * Firestore while the other player was present, and a final score that
  * isn't the live one, are allowed by the Firestore rules (which can't read
  * the Realtime Database) and caught by resultMatchesLive.
+ *
+ * Removal probes (.overnight/probe-airhockey-rtdb.ts over the TypeScript
+ * constraints through tools/removal-probe-rtdb.ts, 124 clauses; and
+ * .overnight/probe-airhockey-fs.ts over airhockey.rules and its gates, 49
+ * checks): 98 and 45 caught. The rest are implied by other checks.
+ * Realtime Database (26):
+ *   - malletIn's required x and y (3): each lower bound (at least 4.5)
+ *     fails for a missing coordinate.
+ *   - `authenticated()` in isHost, isGuestAt, the match read and the meta
+ *     write (4): a signed-out request's auth.uid is null and never equals
+ *     $host or meta's guest.
+ *   - newDataExists() on the host nodes, meta and guestMallet (3): a deleted
+ *     node fails its required() children.
+ *   - meta's required(), required status and winner, and the known status
+ *     and winner lists (5): create pins 'playing' and '', and each ending
+ *     pins its status and winner.
+ *   - metaOver's host check and its status 'over' (2): only the host writes
+ *     the score, and a score that reaches 7 must close meta as 'over' in the
+ *     same write, so no one else ever finds a 7 with meta still playing.
+ *   - The puck's vx and vy bounds (2): vx*vx + vy*vy <= 180*180 bounds each.
+ *   - score's required() and its fields (3): every step branch compares
+ *     both fields with numbers.
+ *   - score's bounds (2): it starts at 0 to 0, moves by one goal a write,
+ *     and closes at 7, after which nothing is written.
+ *   - The root's .read and .write false (2): with no rule, RTDB denies.
+ * Firestore (4):
+ *   - `request.auth != null` in finish, forfeit and resign: each reads
+ *     request.auth.uid, which errors without auth, so the rule denies.
+ *   - The join gate `resource.data.status == 'waiting'`: validJoin checks
+ *     that the match is waiting; the gate stays to keep other updates cheap.
  */
 import { describe, expect, test } from 'bun:test';
 import { initializeSandbox } from 'pyric/sandbox';
@@ -272,6 +302,8 @@ class Match {
       await this.deniedFs('create with a goal scored', 'host', create({ ...fresh, score: { host: 1, guest: 0 } }));
       await this.deniedFs('create already ended', 'host', create({ ...fresh, endedBy: 'goals' }));
       await this.deniedFs('create with a winner', 'host', create({ ...fresh, winner: 'host' }));
+      await this.deniedFs('create with the guest to move', 'host', create({ ...fresh, currentTurn: 'guest' }));
+      await this.deniedFs('create with a move made', 'host', create({ ...fresh, moveCount: 1 }));
       await this.deniedFs('create playing', 'host', create({ ...fresh, status: 'playing' }));
       await this.deniedFs('create with an extra field', 'host', create({ ...fresh, puck: { x: 0, y: 0 } }));
       await this.deniedFs('create with a score field more', 'host', create({ ...fresh, score: { host: 0, guest: 0, ref: 0 } }));
@@ -319,6 +351,7 @@ class Match {
       await this.deniedLive('the host opens the match without a winner field', 'host', this.put('meta', { guest: GUEST, status: 'playing' }));
       await this.deniedLive('the host opens the match with an extra field', 'host', this.put('meta', { ...metaValue, startedAt: 0 }));
       await this.deniedLive('the host opens the match with a numeric guest', 'host', this.put('meta', { ...metaValue, guest: 7 }));
+      await this.deniedLive('the host opens the match without a guest', 'host', this.put('meta', { status: 'playing', winner: '' }));
       await this.deniedLive('the host writes a frame before opening the match', 'host', startLiveOp(this.id, HOST, world));
     }
     if (!(await this.allowedLive('the host opens the match', 'host', meta))) return;
@@ -328,6 +361,12 @@ class Match {
       await this.deniedLive('the host swaps the guest', 'host', this.patch({ guest: STRANGER }, 'meta'));
       await this.deniedLive('the host deletes the match meta', 'host', this.put('meta', null));
       await this.deniedLive('the host starts at 1 to 0', 'host', this.patch({ ...start.value as Data, score: { host: 1, guest: 0 } }));
+      {
+        const first = (start.value as { frame: { puck: Data } }).frame;
+        const { t: _t, ...untimed } = first.puck;
+        await this.deniedLive('the host starts without a tick', 'host', this.patch({ ...start.value as Data, frame: { ...first, puck: untimed } }));
+      }
+      await this.deniedLive('the host starts at 0 to 1', 'host', this.patch({ ...start.value as Data, score: { host: 0, guest: 1 } }));
       await this.deniedLive('the host starts with a score field more', 'host', this.patch({ ...start.value as Data, score: { host: 0, guest: 0, bonus: 0 } }));
       await this.deniedLive('the guest writes the first frame', 'guest', start);
       await this.read('a stranger reads the match', 'stranger', this.base, 'DENY');
@@ -394,7 +433,10 @@ async function frameCheats(m: Match, op: LiveOp, world: World, scored: boolean):
   await m.deniedLive('the puck tick as a string', 'host', withPuck({ t: String(puck.t) }));
   await m.deniedLive('the puck with a spin field', 'host', withPuck({ spin: 1 }));
   await m.deniedLive('the puck without a velocity', 'host', withFrame({ ...frame, puck: { x: puck.x, y: puck.y, t: puck.t } }));
-  await m.deniedLive('the puck without a tick', 'host', withFrame({ ...frame, puck: { x: puck.x, y: puck.y, vx: puck.vx, vy: puck.vy } }));
+  for (const field of ['x', 'y', 'vx', 'vy', 't'] as const) {
+    const { [field]: _dropped, ...rest } = puck;
+    await m.deniedLive(`the puck without ${field}`, 'host', withFrame({ ...frame, puck: rest }));
+  }
   await m.deniedLive('the puck moved at the stored tick', 'host', withPuck({ x: puck.x === 48 ? 47 : 48, t: stored.frame!.puck.t }));
   await m.deniedLive('the puck moved at an earlier tick', 'host', withPuck({ t: stored.frame!.puck.t - 1 }));
   await m.deniedLive('the host mallet in the guest half', 'host', withFrame({ ...frame, host: { x: frame.host.x, y: 60 } }));
@@ -654,6 +696,15 @@ describe('Air Hockey Security Rules', () => {
       await Bun.sleep(20);
       if (m.live()?.presence?.[leaver] !== false) m.failures.push(`the ${leaver}'s disconnect did not mark it gone: ${JSON.stringify(m.live()?.presence)}`);
       await m.deniedLive(`the ${leaver} forfeits the present ${stayer}`, m.dbFor(uidOf[leaver]), forfeitMetaOp(m.id, HOST, leaver));
+      await m.deniedLive(`the ${leaver} records its own forfeit`, m.dbFor(uidOf[leaver]), forfeitMetaOp(m.id, HOST, stayer));
+      await m.deniedLive(`the ${stayer} forfeits naming the ${leaver} the winner`, stayer, m.patch({ status: 'forfeit', winner: leaver }, 'meta'));
+      await m.deniedLive(`the ${stayer} closes the match as over while the ${leaver} is gone`, stayer, m.patch({ status: 'over', winner: stayer }, 'meta'));
+      await m.deniedLive(`the ${stayer} names itself the winner and plays on while the ${leaver} is gone`, stayer, m.patch({ winner: stayer }, 'meta'));
+      await m.deniedLive(`the ${stayer} records the ${leaver}'s resignation while it is gone`, stayer, m.patch({ status: 'resigned', winner: stayer }, 'meta'));
+      const forfeitData = (forfeitOps(m.id, stayer, score)[0] as { data: Data }).data;
+      await m.deniedFs(`the ${stayer} forfeits and keeps the match playing`, stayer, [{ type: 'update', path: m.path, data: { ...forfeitData, status: 'playing' } }]);
+      await m.deniedFs(`the ${stayer} forfeits as a draw`, stayer, [{ type: 'update', path: m.path, data: { ...forfeitData, status: 'draw' } }]);
+      await m.deniedFs(`the ${stayer} forfeits and swaps the ${leaver}`, stayer, [{ type: 'update', path: m.path, data: { ...forfeitData, [leaver]: STRANGER } }]);
       await m.allowedLive(`the ${stayer} claims the forfeit`, stayer, forfeitMetaOp(m.id, HOST, stayer));
       await m.allowedFs(`the ${stayer} records the forfeit`, stayer, forfeitOps(m.id, stayer, score));
       if (!resultMatchesLive(m.stored(), m.live())) m.failures.push('a real forfeit was flagged');
@@ -680,9 +731,20 @@ describe('Air Hockey Security Rules', () => {
     await m.deniedFs('a stranger resigns the match', 'stranger', resign({ status: 'resigned', winner: 'host' }));
     await m.deniedFs('the guest resigns for the host', 'guest', resign({ status: 'resigned', winner: 'guest' }));
     await m.deniedFs('the guest resigns and changes the score', 'guest', resign({ status: 'resigned', winner: 'host', score: { host: 3, guest: 0 } }));
+    await m.deniedFs('the guest concedes as a win instead of a resignation', 'guest', resign({ status: 'won', winner: 'host' }));
+    await m.deniedFs('the guest names the host the winner and plays on', 'guest', resign({ winner: 'host' }));
+    await m.deniedFs('the guest resigns as a draw', 'guest', resign({ status: 'draw', winner: 'host' }));
     await m.allowedFs('the guest resigns', 'guest', resign({ status: 'resigned', winner: 'host' }));
     await m.allowedLive('the guest resigns the live match', 'guest', resignMetaOp(m.id, HOST, 'guest'));
     await afterEnd(m, initialWorld(), 'after resigning');
+
+    const h = new Match('resign-host');
+    await h.createAndJoin(false);
+    await h.startLive(initialWorld(), false);
+    await h.allowedFs('the host resigns', 'host', [{ type: 'update', path: h.path, data: { status: 'resigned', winner: 'guest' } }]);
+    await h.allowedLive('the host resigns the live match', 'host', resignMetaOp(h.id, HOST, 'host'));
+    m.failures.push(...h.failures);
+    m.disagreements.push(...h.disagreements);
 
     const k = new Match('cancel');
     await k.allowedFs('create', 'host', [{ type: 'set', path: k.path, data: { ...createdMatch(airHockey, HOST), createdAt: FieldValue.serverTimestamp() } }]);
