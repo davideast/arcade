@@ -19,6 +19,10 @@ import { GAMES, type ArcadeGame } from './catalog.ts';
 import { go } from './router.ts';
 
 const TILE = { width: 76, height: 80, gap: 4, top: 24 };
+/** The header's height; the tile grid scrolls in the area below it. */
+const HEADER = 20;
+/** Pointer travel, in logical pixels, that turns a press into a drag. */
+const DRAG_THRESHOLD = 3;
 
 class Tile implements Focusable {
   private readonly frame: Phaser.GameObjects.Container;
@@ -28,7 +32,15 @@ class Tile implements Focusable {
   private focused = false;
   private readonly baseY: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, readonly game: ArcadeGame, private readonly onPress: () => void) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    readonly game: ArcadeGame,
+    private readonly onPress: () => void,
+    private readonly onFocus: (tile: Tile) => void,
+    private readonly dragged: () => boolean,
+  ) {
     this.baseY = y;
     const available = game.scene !== undefined;
     this.frame = panel(scene, 0, 0, TILE.width, TILE.height, 'purple', 'ink');
@@ -40,9 +52,12 @@ class Tile implements Focusable {
     this.root = scene.add.container(x, y, [this.frame, thumb, name, this.badgeBox, this.badge]);
     this.root.setSize(TILE.width, TILE.height);
     this.root.setInteractive(new Phaser.Geom.Rectangle(TILE.width / 2, TILE.height / 2, TILE.width, TILE.height), Phaser.Geom.Rectangle.Contains);
-    this.root.on('pointerover', () => this.setFocus(true));
-    this.root.on('pointerout', () => this.setFocus(false));
-    this.root.on('pointerdown', () => this.press());
+    this.root.on('pointerover', () => this.highlight(true));
+    this.root.on('pointerout', () => this.highlight(false));
+    // Press on release, so a drag that starts on a tile scrolls instead.
+    this.root.on('pointerup', () => {
+      if (!this.dragged()) this.press();
+    });
     this.setOpen(available ? 0 : null);
   }
 
@@ -59,7 +74,22 @@ class Tile implements Focusable {
     }
   }
 
+  get container(): Phaser.GameObjects.Container {
+    return this.root;
+  }
+
+  /** The tile's top and bottom in grid coordinates. */
+  get span(): { top: number; bottom: number } {
+    return { top: this.baseY, bottom: this.baseY + TILE.height };
+  }
+
+  /** Keyboard focus: highlight, and scroll the tile into view. */
   setFocus(focused: boolean): void {
+    this.highlight(focused);
+    if (focused) this.onFocus(this);
+  }
+
+  private highlight(focused: boolean): void {
     this.focused = focused;
     const border = this.frame.list[1] as Phaser.GameObjects.NineSlice;
     border.setFrame(focused ? 'frame-orange' : 'frame-purple');
@@ -72,9 +102,30 @@ class Tile implements Focusable {
 }
 
 export class ArcadeScene extends Phaser.Scene {
+  /** How far the grid can scroll: its last row's bottom edge meets the screen's. */
+  private maxScroll(): number {
+    const rows = Math.ceil(GAMES.length / 3);
+    const bottom = TILE.top + rows * (TILE.height + TILE.gap);
+    return Math.max(0, bottom - 192);
+  }
+
+  private setScroll(value: number): void {
+    this.scroll = Math.round(Math.min(this.maxScroll(), Math.max(0, value)));
+    this.grid.setY(-this.scroll);
+  }
+
+  /** Scroll just enough to show the whole tile below the header. */
+  private scrollIntoView(tile: Tile): void {
+    const { top, bottom } = tile.span;
+    if (top - TILE.top < this.scroll) this.setScroll(top - TILE.top);
+    else if (bottom + TILE.gap > this.scroll + 192) this.setScroll(bottom + TILE.gap - 192);
+  }
+
   private stops: Array<() => void> = [];
   private open = new Map<string, OpenMatch[]>();
   private tiles: Tile[] = [];
+  private grid!: Phaser.GameObjects.Container;
+  private scroll = 0;
   private closeLobby: (() => void) | null = null;
   private refreshLobby: (() => void) | null = null;
 
@@ -89,17 +140,61 @@ export class ArcadeScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, 256, 192, PALETTE.maroon).setOrigin(0, 0);
     for (let y = 0; y < 192; y += 8) this.add.rectangle(0, y, 256, 1, PALETTE.ink, 0.25).setOrigin(0, 0);
-    this.add.rectangle(0, 0, 256, 20, PALETTE.ink).setOrigin(0, 0);
-    text(this, 8, 2, 'PYRIC ARCADE', { size: 16, color: 'sand' });
-    text(this, 248, 7, `PLAYER ${uid.slice(-6).toUpperCase()}`, { align: 'right', color: 'lavender' });
-
+    // Every game in one grid, three per row, scrolled vertically under a fixed header.
     const left = (256 - (3 * TILE.width + 2 * TILE.gap)) / 2;
+    let dragging = false;
+    this.grid = this.add.container(0, 0);
     this.tiles = GAMES.map((game, i) => {
       const x = left + (i % 3) * (TILE.width + TILE.gap);
       const y = TILE.top + Math.floor(i / 3) * (TILE.height + TILE.gap);
-      return new Tile(this, x, y, game, () => this.openLobby(game));
+      const tile = new Tile(this, x, y, game, () => this.openLobby(game), (t) => this.scrollIntoView(t), () => dragging);
+      this.grid.add(tile.container);
+      return tile;
     });
+    // Clip the grid to the area below the header.
+    const clip = new Phaser.GameObjects.Rectangle(this, 0, HEADER, 256, 192 - HEADER, 0xffffff).setOrigin(0, 0);
+    this.grid.enableFilters();
+    this.grid.filters?.external.addMask(clip, false, this.cameras.main);
+
+    // The header draws over the grid and takes the pointer, so a tile scrolled
+    // under it can't be pressed.
+    this.add.rectangle(0, 0, 256, HEADER, PALETTE.ink).setOrigin(0, 0).setInteractive();
+    text(this, 8, 2, 'PYRIC ARCADE', { size: 16, color: 'sand' });
+    text(this, 248, 7, `PLAYER ${uid.slice(-6).toUpperCase()}`, { align: 'right', color: 'lavender' });
+
     const focus = new FocusGroup(this, this.tiles);
+    this.setScroll(this.scroll);
+
+    // Scrolling: the wheel, a pointer or touch drag, and Page Up / Page Down.
+    // Arrow keys move the focus, which scrolls the focused tile into view.
+    const modalOpen = () => (this.data.get('modalCount') ?? 0) > 0;
+    this.input.on('wheel', (_p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      if (!modalOpen()) this.setScroll(this.scroll + dy / 4);
+    });
+    let pressY: number | null = null;
+    let pressScroll = 0;
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      dragging = false;
+      pressY = modalOpen() || pointer.worldY < HEADER ? null : pointer.worldY;
+      pressScroll = this.scroll;
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (pressY === null || !pointer.isDown) return;
+      if (Math.abs(pointer.worldY - pressY) > DRAG_THRESHOLD) dragging = true;
+      if (dragging) this.setScroll(pressScroll + (pressY - pointer.worldY));
+    });
+    this.input.on('pointerup', () => {
+      pressY = null;
+      // Tiles read the flag on this same release; clear it after they have.
+      this.time.delayedCall(0, () => (dragging = false));
+    });
+    const page = 192 - HEADER - TILE.gap;
+    this.input.keyboard?.on('keydown-PAGE_DOWN', () => {
+      if (!modalOpen()) this.setScroll(this.scroll + page);
+    });
+    this.input.keyboard?.on('keydown-PAGE_UP', () => {
+      if (!modalOpen()) this.setScroll(this.scroll - page);
+    });
 
     for (const game of GAMES.filter((g) => g.scene)) {
       this.stops.push(
