@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "bun run --cwd app dev",
     "rules:resolve": "bun run --cwd app rules:resolve",
-    "lint": "bun run rules:resolve && bun tools/lint-rules.ts",
+    "rtdb:rules": "bun tools/rtdb-rules.ts",
+    "lint": "bun run rules:resolve && bun tools/lint-rules.ts && bun tools/rtdb-rules.ts --check",
     "test": "bun run rules:resolve && bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

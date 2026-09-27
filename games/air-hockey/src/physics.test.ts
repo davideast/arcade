@@ -144,7 +144,7 @@ describe('air hockey writes', () => {
     expect(op.type === 'update' && op.value['meta/status']).toBe('over');
     expect(op.type === 'update' && op.value['meta/winner']).toBe('host');
     const plain = frameOp('m', 'h', { ...w, score: { host: 1, guest: 2 } }, false);
-    expect(plain.type === 'update' && 'score' in plain.value).toBe(false);
+    expect(plain).toEqual({ type: 'set', path: 'airhockey/m/h/frame', value: frameOf({ ...w, score: { host: 1, guest: 2 } }) });
   });
 
   test('a result must agree with the live match', () => {

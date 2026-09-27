@@ -15,9 +15,10 @@
  * no one else can take the path a match's players use. Under it:
  *
  *   meta          { guest, status, winner }  the host creates it once
- *   puck          { x, y, vx, vy, t }        the host, each frame (t: tick)
- *   hostMallet    { x, y }                   the host, each frame
- *   seenGuest     { x, y }                   the host: the guest's mallet as simulated
+ *   frame         the host, each frame:
+ *     puck        { x, y, vx, vy, t }        t is the simulation tick
+ *     host        { x, y }                   the host mallet
+ *     guest       { x, y }                   the guest mallet as the host simulated it
  *   guestMallet   { x, y }                   the guest: its own mallet
  *   score         { host, guest }            the host, on each goal
  *   presence      { host, guest }            each player its own; false on disconnect
@@ -86,12 +87,13 @@ export interface LiveMeta {
 
 export interface LiveFrame {
   puck: Puck & { t: number };
-  hostMallet: Vec;
-  seenGuest: Vec;
+  host: Vec;
+  guest: Vec;
 }
 
 /** The live match as stored; any part may be missing before the host starts it. */
-export interface LiveMatch extends Partial<LiveFrame> {
+export interface LiveMatch {
+  frame?: LiveFrame;
   meta?: LiveMeta;
   guestMallet?: Vec;
   score?: Score;
@@ -113,8 +115,8 @@ export function frameOf(world: World): LiveFrame {
   return {
     // Velocities round toward zero, so a puck at top speed never reads faster.
     puck: { x: round2(puck.x), y: round2(puck.y), vx: Math.trunc(puck.vx * 100) / 100, vy: Math.trunc(puck.vy * 100) / 100, t: world.tick },
-    hostMallet: point(world.host),
-    seenGuest: point(world.guest),
+    host: point(world.host),
+    guest: point(world.guest),
   };
 }
 
@@ -125,18 +127,18 @@ export function startMetaOp(id: string, hostUid: string, guestUid: string): Live
 
 /** The host's first frame, with the score at 0 to 0. */
 export function startLiveOp(id: string, hostUid: string, world: World): LiveOp {
-  return { type: 'update', path: livePath(id, hostUid), value: { ...frameOf(world), score: { host: 0, guest: 0 } } };
+  return { type: 'update', path: livePath(id, hostUid), value: { frame: frameOf(world), score: { host: 0, guest: 0 } } };
 }
 
 /**
- * A frame from the host. A frame after a goal carries the new score; a
- * frame that ends the match also closes it, naming the winner.
+ * A frame from the host, one node. A frame after a goal also carries the
+ * new score; a frame that ends the match also closes it, naming the winner.
  */
 export function frameOp(id: string, hostUid: string, world: World, scored: boolean): LiveOp {
-  const value: Record<string, unknown> = { ...frameOf(world) };
-  if (scored) value.score = { ...world.score };
+  if (!scored) return { type: 'set', path: `${livePath(id, hostUid)}/frame`, value: frameOf(world) };
+  const value: Record<string, unknown> = { frame: frameOf(world), score: { ...world.score } };
   const won = winner(world.score);
-  if (scored && won) {
+  if (won) {
     value['meta/status'] = 'over';
     value['meta/winner'] = won;
   }
