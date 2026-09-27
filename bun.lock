@@ -30,6 +30,7 @@
         "@games/tictactoe": "workspace:*",
         "@games/turn-net": "workspace:*",
         "@games/uno": "workspace:*",
+        "@games/yacht": "workspace:*",
       },
     },
     "games/battleship": {

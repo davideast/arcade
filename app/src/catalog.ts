@@ -12,12 +12,14 @@ import { PoolScene, createPool, joinPool } from '@games/pool';
 import { BattleshipScene, createBattleship, joinBattleship } from '@games/battleship';
 import { ChessScene, createChess, joinChess } from '@games/chess';
 import { CheckersScene, createCheckers, joinCheckers } from '@games/checkers';
+import { YachtScene, createYacht, joinYacht } from '@games/yacht';
 import tictactoeSheet from '../../MASFunPack/AllGames/TicTacToeSpriteSheet.png?url';
 import unoSheet from '../../MASFunPack/AllGames/Uno.png?url';
 import poolSheet from '../../MASFunPack/AllGames/PoolSpriteSheet.png?url';
 import battleshipSheet from '../../MASFunPack/AllGames/BattleshipSpriteSheet.png?url';
 import chessSheet from '../../MASFunPack/AllGames/ChessSpriteSheet.png?url';
 import checkersSheet from '../../MASFunPack/AllGames/CheckersSpriteSheet.png?url';
+import yachtSheet from '../../MASFunPack/AllGames/YachtSpriteSheet.png?url';
 
 export interface ArcadeGame {
   id: string;
@@ -100,6 +102,17 @@ export const GAMES: ArcadeGame[] = [
     seats: twoSeats,
     create: (c) => createCheckers(c),
     join: (c, id) => joinCheckers(c, id),
+  },
+  {
+    id: 'yacht',
+    title: 'Yacht',
+    sheetKey: 'sheet-yacht',
+    sheetUrl: yachtSheet,
+    players: '2-4',
+    scene: YachtScene,
+    seats: (data) => ({ filled: (data.players as string[] | undefined)?.length ?? 1, total: 4 }),
+    create: (c) => createYacht(c),
+    join: (c, id) => joinYacht(c, id),
   },
 ];
 
