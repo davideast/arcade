@@ -3,7 +3,25 @@
  * players run through the same write lists the browser applies, each write as
  * the acting player's identity. Every real action must be allowed; before each
  * one, a set of cheats derived from it must be denied and leave nothing
- * changed. Two seeded endings cover a tie (draw) and a last-seat win.
+ * changed. Seeded endings cover ties and every order of final totals, and a
+ * fixed-dice table covers each category's points.
+ *
+ * Removal probes (.overnight/probe-yacht.ts, 132 checks): 119 caught. The 13
+ * not caught are implied by other checks:
+ *   - `request.auth != null` in all seven transitions: each also compares
+ *     request.auth.uid (host, players[turn], players[seat], `in players`),
+ *     which errors without auth, so the rule denies.
+ *   - yachtFinal `w >= 0 && w < n`: t[w] errors outside the list; naming
+ *     seat -1 or seat n is denied either way.
+ *   - yachtNonce and yachtReveal `before.status == 'playing'`: only a commit
+ *     sets `commit`, a commit needs 'playing', and every score (including the
+ *     last) needs `commit == ''`, so `before.commit != ''` implies playing.
+ *   - yachtReveal `before.commit != ''`: SHA-256 of a salt is never ''.
+ *   - yachtScore `before.status == 'playing'`: a waiting or finished match
+ *     has rolls 0 and can't gain a roll (reveal needs a commit), so
+ *     `before.rolls > 0` implies playing.
+ *   - yachtPoints `cat == 'yacht'` in the last branch: cat must be a key of
+ *     the card, and every other key has an earlier branch.
  */
 import { describe, expect, test } from 'bun:test';
 import { initializeSandbox } from 'pyric/sandbox';
@@ -143,6 +161,7 @@ async function roll(t: Table, m: YachtMatch, keep: boolean[], random: () => numb
       { ...commitReal[0], data: { ...commitReal[0].data, ...scoreOps(id, m, bestCategory(m))[0].data, lastAction: 'commit' } },
     ]);
   }
+  await t.denied('commit labeled as a nonce', t.as(roller), patched(commitReal, { lastAction: 'nonce' }));
   if (!(await t.allowed(`commit roll ${m.rolls + 1}`, t.as(roller), commitReal))) throw new Error(t.failures.join('\n'));
   m = afterCommit(m, commit, keep);
   t.check(m, 'after commit');
@@ -167,6 +186,7 @@ async function roll(t: Table, m: YachtMatch, keep: boolean[], random: () => numb
     await t.denied('a lowercase nonce', t.as(uid), nonceOps(id, m, seat, nonce.toLowerCase()));
     await t.denied('a short nonce', t.as(uid), nonceOps(id, m, seat, nonce.slice(1)));
     await t.denied('a nonce that also changes the dice', t.as(uid), patched(real, { dice: [1, 1, 1, 1, 1] }));
+    await t.denied('nonce labeled as a commit', t.as(uid), patched(real, { lastAction: 'commit' }));
     if (!(await t.allowed(`nonce seat ${seat}`, t.as(uid), real))) throw new Error(t.failures.join('\n'));
     m = afterNonce(m, seat, nonce);
     await t.denied('rewrite a nonce already in', t.as(uid), nonceOps(id, { ...m, nonces: { ...m.nonces, [String(seat)]: '' } }, seat, randomHex(32, random)));
@@ -203,6 +223,7 @@ async function roll(t: Table, m: YachtMatch, keep: boolean[], random: () => numb
   await t.denied('reveal and keep the commitment', t.as(roller), without(real, 'commit'));
   await t.denied('reveal and change a total', t.as(roller), patched(real, { totals: m.totals.map((x, i) => (i === m.turn ? x + 50 : x)) }));
   await t.denied('reveal and clear the nonces', t.as(roller), patched(real, { nonces: afterCommit({ ...m, commit: '' }, commit, keep).nonces }));
+  await t.denied('reveal labeled as a score', t.as(roller), patched(real, { lastAction: 'score' }));
   if (!(await t.allowed(`reveal roll ${after.rolls}`, t.as(roller), real))) throw new Error(t.failures.join('\n'));
   t.check(after, 'after reveal');
   return after;
@@ -254,7 +275,13 @@ async function score(t: Table, m: YachtMatch, category: Category): Promise<Yacht
     }));
   }
   if (earned > 0) await t.denied('score without adding to the total', t.as(uid), patched(real, { totals: m.totals }));
-  await t.denied("score and change another player's total", t.as(uid), patched(real, { totals: data.totals.map((x, i) => (i === m.turn ? x : x + 1)) }));
+  for (let j = 0; j < m.players.length; j++) {
+    if (j !== m.turn) await t.denied(`score and change seat ${j}'s total`, t.as(uid), patched(real, { totals: data.totals.map((x, i) => (i === j ? x + 1 : x)) }));
+  }
+  await t.denied('score and add a total for a seat that does not exist', t.as(uid), patched(real, { totals: [...data.totals, 0] }));
+  await t.denied('score the wrong points on the card with the right total', t.as(uid), patched(real, {
+    scores: { ...data.scores, [key]: { ...data.scores[key], [category]: earned + 1 } },
+  }));
   const second = unused(m.scores[key]).find((c) => c !== category);
   if (second) {
     await t.denied('score two categories at once', t.as(uid), patched(real, {
@@ -279,6 +306,13 @@ async function score(t: Table, m: YachtMatch, category: Category): Promise<Yacht
       totals: m.totals.map((x, i) => (i === otherSeat ? x + earned : x)),
     }));
   }
+  const blank = CATEGORIES.find((c) => m.scores[otherKey][c] === -1);
+  if (blank) {
+    await t.denied("score and also fill another player's card", t.as(uid), patched(real, {
+      scores: { ...data.scores, [otherKey]: { ...m.scores[otherKey], [blank]: 0 } },
+    }));
+  }
+  await t.denied('score labeled as a reveal', t.as(uid), patched(real, { lastAction: 'reveal' }));
   await t.denied('score and keep the turn', t.as(uid), patched(real, { turn: next.status === 'playing' ? m.turn : (m.turn + 1) % m.players.length }));
   await t.denied('score and skip the next player', t.as(uid), patched(real, { turn: (m.turn + 2) % m.players.length === next.turn ? (m.turn + 3) % m.players.length : (m.turn + 2) % m.players.length }));
   await t.denied('score without resetting the rolls', t.as(uid), patched(real, { rolls: m.rolls }));
@@ -289,9 +323,15 @@ async function score(t: Table, m: YachtMatch, category: Category): Promise<Yacht
     const end = afterScore({ ...m, moveCount: totalTurns(m) - 1 }, category);
     await t.denied('claim the game is over early', t.as(uid), patched(real, { status: end.status, winner: end.winner, turn: m.turn }));
     await t.denied('name a winner while playing', t.as(uid), patched(real, { winner: m.turn }));
+    await t.denied('end the game early without a winner', t.as(uid), patched(real, { status: 'won' }));
   } else {
     await t.denied('end the game still playing', t.as(uid), patched(real, { status: 'playing', winner: -1, turn: (m.turn + 1) % m.players.length }));
-    await t.denied('name the wrong winner', t.as(uid), patched(real, { winner: (next.winner + 1) % m.players.length }));
+    // Every other seat as the winner, each with the status its totals would give.
+    for (let w = 0; w < m.players.length; w++) {
+      if (w === next.winner) continue;
+      const tie = next.totals.some((x, k) => k > w && x === next.totals[w]);
+      await t.denied(`name seat ${w} the winner`, t.as(uid), patched(real, { winner: w, status: tie ? 'draw' : 'won' }));
+    }
     await t.denied(next.status === 'won' ? 'call a win a draw' : 'call a draw a win', t.as(uid), patched(real, { status: next.status === 'won' ? 'draw' : 'won' }));
     await t.denied('name no winner', t.as(uid), patched(real, { winner: -1 }));
     await t.denied('name a winner past the last seat', t.as(uid), patched(real, { winner: m.players.length }));
@@ -308,6 +348,8 @@ async function lobby(t: Table, random: () => number): Promise<YachtMatch> {
   const create = (data: Data): WriteOp[] => [{ type: 'set', path: matchPath(id), data }];
   await t.denied('create for someone else', t.as(uids[1]), create(fresh));
   await t.denied('create with a scored card', t.as(host), create({ ...fresh, scores: { s0: { ...freshCard(), yacht: 50 } }, totals: [50] }));
+  await t.denied('create with a card', t.as(host), create({ ...fresh, scores: { s0: freshCard() } }));
+  await t.denied('create hosted by someone else', t.as(host), create({ ...fresh, host: uids[1] }));
   await t.denied('create already playing', t.as(host), create({ ...fresh, status: 'playing' }));
   await t.denied('create with a pending commitment', t.as(host), create({ ...fresh, commit: commitOf(random) }));
   await t.denied('create with dice rolled', t.as(host), create({ ...fresh, dice: [6, 6, 6, 6, 6] }));
@@ -328,6 +370,9 @@ async function lobby(t: Table, random: () => number): Promise<YachtMatch> {
   if (!(await t.allowed('create', t.as(host), create(fresh)))) throw new Error(t.failures.join('\n'));
   let m = createdMatch(host);
 
+  await t.denied('start alone with four seats set up', t.as(host), [{ type: 'update', path: matchPath(id), data: {
+    status: 'playing', nonces: emptyNonces(4), scores: Object.fromEntries([0, 1, 2, 3].map((i) => [scoreKey(i), freshCard()])), totals: [0, 0, 0, 0], lastAction: 'start',
+  } }]);
   await t.denied('start alone', t.as(host), startOps(id, { ...m, players: [host, 'ghost'] }).map((op) => ({ ...op, data: { ...op.data, nonces: { '0': '' }, scores: { s0: freshCard() }, totals: [0] } })));
   for (const uid of uids.slice(1)) {
     const real = joinOps(id, m, uid);
@@ -336,6 +381,7 @@ async function lobby(t: Table, random: () => number): Promise<YachtMatch> {
     await t.denied('join and start the game', t.as(uid), patched(real, { status: 'playing' }));
     await t.denied('join in front of the others', t.as(uid), patched(real, { players: [uid, ...m.players] }));
     await t.denied('join twice in one write', t.as(uid), patched(real, { players: [...m.players, uid, uid] }));
+    await t.denied('join labeled as a start', t.as(uid), patched(real, { lastAction: 'start' }));
     if (!(await t.allowed(`join ${uid}`, t.as(uid), real))) throw new Error(t.failures.join('\n'));
     m = { ...m, players: [...m.players, uid], lastAction: 'join' };
     await t.denied('non-host starts', t.as(uid), startOps(id, m));
@@ -358,6 +404,7 @@ async function lobby(t: Table, random: () => number): Promise<YachtMatch> {
   await t.denied('start on another seat', t.as(host), patched(start, { turn: 1 }));
   await t.denied('start and add a player', t.as(host), patched(start, { players: [...m.players, 'ghost'] }));
   await t.denied('start already finished', t.as(host), patched(start, { status: 'won' }));
+  await t.denied('start labeled as a join', t.as(host), patched(start, { lastAction: 'join' }));
   if (!(await t.allowed('start', t.as(host), start))) throw new Error(t.failures.join('\n'));
   m = started;
   t.check(m, 'after start');
@@ -376,6 +423,12 @@ async function turn(t: Table, m: YachtMatch, random: () => number): Promise<Yach
   // Scoring before rolling reuses the last player's dice.
   if (m.moveCount > 0) {
     await t.denied('score before rolling', t.as(uid), updateOps(t.id, { ...afterScoreUnchecked(m), lastAction: 'score' }));
+  }
+  if (m.commit === '') {
+    const seat = (m.turn + 1) % m.players.length;
+    await t.denied('a nonce before the roller commits', t.as(m.players[seat]), [{ type: 'update', path: matchPath(t.id), data: {
+      nonces: { ...emptyNonces(m.players.length), [String(seat)]: randomHex(32, random) }, lastSeat: seat, lastAction: 'nonce',
+    } }]);
   }
   const rolls = 1 + Math.floor(random() * 3);
   m = await roll(t, m, NO_KEEP, random);
@@ -396,7 +449,7 @@ async function playGame(seed: number, players: number): Promise<{ failures: stri
   const t = new Table(`m${seed}`, Array.from({ length: players }, (_, i) => `player-${i}`));
   let m = await lobby(t, random);
   while (m.status === 'playing') m = await turn(t, m, random);
-  await t.denied('roll after the game ends', t.as(m.players[m.turn]), [{ type: 'update', path: matchPath(t.id), data: { commit: commitOf(random), keep: NO_KEEP, nonces: m.nonces, lastAction: 'commit' } }]);
+  await t.denied('roll after the game ends', t.as(m.players[m.turn]), [{ type: 'update', path: matchPath(t.id), data: { commit: commitOf(random), keep: NO_KEEP, nonces: emptyNonces(m.players.length), lastAction: 'commit' } }]);
   await t.denied('score after the game ends', t.as(m.players[m.turn]), updateOps(t.id, { ...afterScoreUnchecked({ ...m, status: 'playing', scores: { ...m.scores, [scoreKey(m.turn)]: { ...m.scores[scoreKey(m.turn)], choice: -1 } } }), lastAction: 'score' }));
   return { failures: t.failures, m };
 }
@@ -448,6 +501,67 @@ describe('Yacht Security Rules', () => {
     expect(failures).toEqual([]);
     expect(m.status).toBe('draw');
     expect(m.winner).toBe(0);
+  }, 60_000);
+
+  // Final scores for four players: the top seat in each place, with the others
+  // arranged so that naming each wrong seat breaks exactly one ordering check.
+  const endings: Array<[string, (sum: number) => number[], number, string]> = [
+    ['seat 0 on top', () => [200, 100, 20, 30], 0, 'won'],
+    ['seat 1 on top, seat 0 second', () => [100, 200, 50, 20], 1, 'won'],
+    ['seat 1 on top, seat 0 last', () => [10, 200, 50, 20], 1, 'won'],
+    ['seat 2 on top', () => [10, 20, 200, 50], 2, 'won'],
+    ['seat 2 on top, seat 0 second', () => [100, 50, 200, 20], 2, 'won'],
+    ['seat 3 on top', () => [100, 20, 50, 200], 3, 'won'],
+    ['seats 0 and 2 tie', () => [100, 10, 100, 40], 0, 'draw'],
+    ['seats 0 and 3 tie', (sum) => [100 + sum, 10, 20, 100], 0, 'draw'],
+  ];
+  endings.forEach(([name, totalsFor, winner, status], i) => {
+    test(`four players end: ${name}`, async () => {
+      const { failures, m } = await ending(100 + i, 4, totalsFor, 'choice');
+      expect(failures).toEqual([]);
+      expect(m.status).toBe(status);
+      expect(m.winner).toBe(winner);
+    }, 60_000);
+  });
+
+  test('every category scores exactly its points from fixed dice', async () => {
+    const t = new Table('fixed', ['player-0', 'player-1']);
+    const base = afterStart({ ...createdMatch('player-0'), players: t.uids });
+    const hands = [[2, 2, 2, 2, 5], [3, 5, 3, 3, 3], [5, 3, 3, 3, 3], [2, 2, 3, 3, 3], [1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [4, 4, 4, 4, 4], [1, 1, 2, 4, 1], [6, 6, 6, 2, 6], [1, 3, 4, 5, 6]];
+    for (const dice of hands) {
+      for (const category of CATEGORIES) {
+        const m: YachtMatch = { ...base, dice, rolls: 1, salt: '0'.repeat(32), lastAction: 'reveal' };
+        t.sandbox.admin.setDocument(matchPath(t.id), { ...m, createdAt: new Date() });
+        const real = scoreOps(t.id, m, category);
+        const earned = points(category, dice);
+        const sum = dice.reduce((a, b) => a + b, 0);
+        const claims = new Set([earned + 1, earned === 0 ? sum : 0, earned === 0 ? 30 : earned - 1, earned === 0 ? 50 : earned * 2]);
+        claims.delete(earned);
+        for (const claim of claims) {
+          await t.denied(`${category} on ${dice.join('')} for ${claim}`, t.as('player-0'), patched(real, {
+            scores: { ...m.scores, s0: { ...m.scores.s0, [category]: claim } },
+            totals: [claim, 0],
+          }));
+        }
+        await t.allowed(`${category} on ${dice.join('')} for ${earned}`, t.as('player-0'), real);
+      }
+    }
+    expect(t.failures).toEqual([]);
+  }, 60_000);
+
+  test('a salt outside the format is refused even when it matches the commitment', async () => {
+    const t = new Table('salt', ['player-0', 'player-1']);
+    let m = afterStart({ ...createdMatch('player-0'), players: t.uids });
+    t.sandbox.admin.setDocument(matchPath(t.id), { ...m, createdAt: new Date() });
+    const salt = randomHex(32, mulberry32(1)).toLowerCase() + 'z';
+    await t.allowed('commit to an odd salt', t.as('player-0'), commitOps(t.id, m, commitmentOf(salt), NO_KEEP));
+    m = afterCommit(m, commitmentOf(salt), NO_KEEP);
+    await t.allowed('nonce', t.as('player-1'), nonceOps(t.id, m, 1, 'A'.repeat(32)));
+    m = afterNonce(m, 1, 'A'.repeat(32));
+    await t.denied('reveal the odd salt', t.as('player-0'), [{ type: 'update', path: matchPath(t.id), data: {
+      salt, dice: derivedFaces(salt, m.nonces), rolls: 1, commit: '', lastAction: 'reveal',
+    } }]);
+    expect(t.failures).toEqual([]);
   }, 60_000);
 
   test('the last seat can win on the last score', async () => {
