@@ -1,14 +1,15 @@
 // Removal probe: delete one check from a rules module, re-resolve, run a test,
 // and report whether the test caught it. The module is restored afterwards.
-//   bun tools/removal-probe.ts <module.rules> '<exact text to remove>' <test path> ['<replacement>'] ['<fast pattern>']
+//   bun tools/removal-probe.ts <module.rules> '<exact text to remove>' <test path> ['<replacement>']
 // A replacement keeps the source valid when the removed check ends a statement.
-// With a fast pattern, the tests whose names match it run first; the whole test
+// With PROBE_FAST set to a test name pattern, the tests it matches run first; the whole test
 // runs only when they pass, so a probe they catch costs only their time.
 import { $ } from 'bun';
 
-const [modulePath, snippet, testPath, replacement = '', fast = ''] = process.argv.slice(2);
+const [modulePath, snippet, testPath, replacement = ''] = process.argv.slice(2);
+const fast = process.env.PROBE_FAST ?? '';
 if (!modulePath || !snippet || !testPath) {
-  throw new Error("usage: bun tools/removal-probe.ts <module.rules> '<text to remove>' <test path> ['<replacement>'] ['<fast pattern>']");
+  throw new Error("usage: bun tools/removal-probe.ts <module.rules> '<text to remove>' <test path> ['<replacement>']");
 }
 const original = await Bun.file(modulePath).text();
 if (!original.includes(snippet)) throw new Error(`Text not found in ${modulePath}: ${snippet}`);

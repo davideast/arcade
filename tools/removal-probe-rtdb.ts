@@ -2,14 +2,15 @@
 // clause of the constraint source, regenerate app/database.rules.json, run a
 // test, and report whether the test caught it. The source and the JSON are
 // restored afterwards.
-//   bun tools/removal-probe-rtdb.ts <rules.ts> '<exact text>' <test path> ['<replacement>'] ['<fast pattern>']
-// With a fast pattern, the tests whose names match it run first; the whole test
+//   bun tools/removal-probe-rtdb.ts <rules.ts> '<exact text>' <test path> ['<replacement>']
+// With PROBE_FAST set to a test name pattern, the tests it matches run first; the whole test
 // runs only when they pass.
 import { $ } from 'bun';
 
-const [sourcePath, snippet, testPath, replacement = '', fast = ''] = process.argv.slice(2);
+const [sourcePath, snippet, testPath, replacement = ''] = process.argv.slice(2);
+const fast = process.env.PROBE_FAST ?? '';
 if (!sourcePath || !snippet || !testPath) {
-  throw new Error("usage: bun tools/removal-probe-rtdb.ts <rules.ts> '<text to remove>' <test path> ['<replacement>'] ['<fast pattern>']");
+  throw new Error("usage: bun tools/removal-probe-rtdb.ts <rules.ts> '<text to remove>' <test path> ['<replacement>']");
 }
 const original = await Bun.file(sourcePath).text();
 const first = original.indexOf(snippet);
