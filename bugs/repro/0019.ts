@@ -29,7 +29,8 @@ const cases: Array<[string, 'ALLOW' | 'DENY']> = [
   ["'users/' + uid + '/' + file == 'users/alice/a.txt'", 'ALLOW'],
   ["'a' + 'b' != 'ab'", 'DENY'],
   ["'users/' + request.auth.uid != 'users/alice'", 'DENY'],
-  ['[1] + [2] == [1, 2]', 'ALLOW'],
+  // Production has no list + list in Storage rules: it is an unsupported-operation error, which denies.
+  ['[1] + [2] == [1, 2]', 'DENY'],
   ['1 + 2 == 3', 'ALLOW'],
 ];
 let ok = true;

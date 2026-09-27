@@ -19,18 +19,21 @@ From the repository root:
 bun bugs/repro/0013.ts
 ```
 
-One `.write` rule, `auth != null` joined with `&&` once and 40 times (the same meaning, 40 times the text), 200 writes each.
+One `.write` rule, `auth != null` joined with `&&` once and 40 times (the same meaning, 40 times the text), 200 writes each, and 200 parses of the 40-term rule with `parseExpression`. The 40-term rule still runs 40 comparisons per write, so the check compares a write with one parse: it exits 1 while a 40-term write costs more than half a parse, which happens only when every evaluation parses again.
 
 ## Expected
 
-Each rule is parsed once, when the rules are set, and a write evaluates the parsed tree; the 40-term rule costs little more than the 1-term rule.
+Each rule is parsed once and a write evaluates the parsed tree, so a 40-term write costs its 40 comparisons, well under one parse of the rule.
 
 ## Actual
 
 ```text
-1 term: 0.133 ms per write
-40 terms: 2.239 ms per write (16.8x)
+1 term: 0.131 ms per write
+40 terms: 1.973 ms per write (15.0x)
+parsing the 40-term rule once: 1.932 ms
 ```
+
+A 40-term write costs about one parse (exit 1). With each rule parsed once, the same run gives 0.221 ms per 40-term write against 1.945 ms per parse (exit 0); the remaining 4.6x over the 1-term rule is the 39 extra comparisons.
 
 Timing `matchRtdbExpression` alone on the 40-term text: 1.80 ms per parse, against 2.12 ms per full evaluation.
 
