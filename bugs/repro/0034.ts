@@ -1,6 +1,7 @@
 // Repro 0034: production rejects a ruleset at compile time when a call stack
 // holds 22 functions, a function has 12 let bindings, or an expression nests
-// 98 levels deep. Pyric's Firestore simulator and Storage evaluator accept all
+// too deep (98 levels around a comparison, 99 around a bare literal). Pyric's
+// Firestore simulator and Storage evaluator accept all
 // of them and allow the request, and the Storage evaluator denies a 21-function
 // chain that production compiles.
 //   bun bugs/repro/0034.ts      (exit 1 while the bug is present)
@@ -29,7 +30,7 @@ service cloud.firestore {
 const nested = `rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /docs/{id} { allow read: if ${'('.repeat(98)}true${')'.repeat(98)}; }
+    match /docs/{id} { allow read: if ${'('.repeat(99)}true${')'.repeat(99)}; }
   }
 }`;
 
@@ -45,7 +46,7 @@ const decide = (source: string) => {
 const results = {
   'call stack of 22 functions': decide(chain(22)),
   'function with 12 let bindings': decide(twelveLets),
-  'expression nested 98 levels': decide(nested),
+  'literal in 99 parentheses': decide(nested),
 };
 for (const [name, r] of Object.entries(results)) console.log(`${name}: simulate ${r}; production rejects the ruleset at compile time`);
 process.exit(Object.values(results).every((r) => r !== 'ALLOW') ? 0 : 1);
