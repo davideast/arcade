@@ -8,7 +8,14 @@ import { isPlaying, moveIncremented } from 'state';
 // Reversi match rules. The host plays dark ('d') and moves first; the guest
 // plays light ('l'). The match document follows the stdlib convention (host,
 // guest, currentTurn, status, winner, moveCount) plus board, prevBoard,
-// counts {d, l}, and lastMove {at, runs}.
+// counts {d, l}, lastMove {at, runs}, and full {d, l}.
+//
+// full.d and full.l map every square to that side's disc. They are set at
+// creation and never change; a board diffed against one gives that side's
+// squares as a set, so a whole run is checked with one hasAll instead of
+// one comparison per square. Production counts every evaluated expression
+// against a limit of 1,000 per request, and the per-square checks passed
+// that limit on moves with long reaches in many directions.
 //
 // The board maps a square key to its disc: the rank then the file as digits,
 // '11' for a1 through '88' for h8. A step in a direction adds a fixed number
@@ -36,25 +43,39 @@ function reversiStartBoard() {
   };
 }
 
-// One direction of a move at key `p`, stepping by `s`, with reach `n` (an
-// integer 0..7, checked by the caller): the n squares from p are the
-// opponent's, and the square past them is not. The run flips when that
-// square holds the mover's disc: its squares then hold the mover's disc
-// after the move, and otherwise keep the opponent's. Returns the number of
-// discs flipped, or -100 when the direction is wrong, which makes the move's
-// total negative. The square checks nest, so a direction stops at its reach.
-function reversiRay(b, a, p, s, n, me, op) {
-  let end = b.get(string(p + (n + 1) * s), '');
-  let v = n > 0 && end == me ? me : op;
-  return (end != op
-    && (n < 1 || (b[string(p + s)] == op && (v == op || a[string(p + s)] == me)
-    && (n < 2 || (b[string(p + 2 * s)] == op && (v == op || a[string(p + 2 * s)] == me)
-    && (n < 3 || (b[string(p + 3 * s)] == op && (v == op || a[string(p + 3 * s)] == me)
-    && (n < 4 || (b[string(p + 4 * s)] == op && (v == op || a[string(p + 4 * s)] == me)
-    && (n < 5 || (b[string(p + 5 * s)] == op && (v == op || a[string(p + 5 * s)] == me)
-    && (n < 6 || (b[string(p + 6 * s)] == op && (v == op || a[string(p + 6 * s)] == me)
-    && (n < 7 || (b[string(p + 7 * s)] == op && (v == op || a[string(p + 7 * s)] == me))))))))))))))))
-    ? (v == me ? n : 0) : -100;
+// The squares from each square to the edge of the board in each of the
+// eight directions, in the order of runs[]: entry 8 * (key - 11) + d lists
+// them for direction d, each followed by '_', and ends with 'x', which is not
+// a square. Keys that are not squares (19, 20, ...) have the entry 'x'.
+function reversiRays() {
+  return '12_13_14_15_16_17_18_x 22_33_44_55_66_77_88_x 21_31_41_51_61_71_81_x x x x x x 13_14_15_16_17_18_x 23_34_45_56_67_78_x 22_32_42_52_62_72_82_x 21_x 11_x x x x 14_15_16_17_18_x 24_35_46_57_68_x 23_33_43_53_63_73_83_x 22_31_x 12_11_x x x x 15_16_17_18_x 25_36_47_58_x 24_34_44_54_64_74_84_x 23_32_41_x 13_12_11_x x x x 16_17_18_x 26_37_48_x 25_35_45_55_65_75_85_x 24_33_42_51_x 14_13_12_11_x x x x 17_18_x 27_38_x 26_36_46_56_66_76_86_x 25_34_43_52_61_x 15_14_13_12_11_x x x x 18_x 28_x 27_37_47_57_67_77_87_x 26_35_44_53_62_71_x 16_15_14_13_12_11_x x x x x x 28_38_48_58_68_78_88_x 27_36_45_54_63_72_81_x 17_16_15_14_13_12_11_x x x x x x x x x x x x x x x x x x x x 22_23_24_25_26_27_28_x 32_43_54_65_76_87_x 31_41_51_61_71_81_x x x x 11_x 12_x 23_24_25_26_27_28_x 33_44_55_66_77_88_x 32_42_52_62_72_82_x 31_x 21_x 11_x 12_x 13_x 24_25_26_27_28_x 34_45_56_67_78_x 33_43_53_63_73_83_x 32_41_x 22_21_x 12_x 13_x 14_x 25_26_27_28_x 35_46_57_68_x 34_44_54_64_74_84_x 33_42_51_x 23_22_21_x 13_x 14_x 15_x 26_27_28_x 36_47_58_x 35_45_55_65_75_85_x 34_43_52_61_x 24_23_22_21_x 14_x 15_x 16_x 27_28_x 37_48_x 36_46_56_66_76_86_x 35_44_53_62_71_x 25_24_23_22_21_x 15_x 16_x 17_x 28_x 38_x 37_47_57_67_77_87_x 36_45_54_63_72_81_x 26_25_24_23_22_21_x 16_x 17_x 18_x x x 38_48_58_68_78_88_x 37_46_55_64_73_82_x 27_26_25_24_23_22_21_x 17_x 18_x x x x x x x x x x x x x x x x x x 32_33_34_35_36_37_38_x 42_53_64_75_86_x 41_51_61_71_81_x x x x 21_11_x 22_13_x 33_34_35_36_37_38_x 43_54_65_76_87_x 42_52_62_72_82_x 41_x 31_x 21_x 22_12_x 23_14_x 34_35_36_37_38_x 44_55_66_77_88_x 43_53_63_73_83_x 42_51_x 32_31_x 22_11_x 23_13_x 24_15_x 35_36_37_38_x 45_56_67_78_x 44_54_64_74_84_x 43_52_61_x 33_32_31_x 23_12_x 24_14_x 25_16_x 36_37_38_x 46_57_68_x 45_55_65_75_85_x 44_53_62_71_x 34_33_32_31_x 24_13_x 25_15_x 26_17_x 37_38_x 47_58_x 46_56_66_76_86_x 45_54_63_72_81_x 35_34_33_32_31_x 25_14_x 26_16_x 27_18_x 38_x 48_x 47_57_67_77_87_x 46_55_64_73_82_x 36_35_34_33_32_31_x 26_15_x 27_17_x 28_x x x 48_58_68_78_88_x 47_56_65_74_83_x 37_36_35_34_33_32_31_x 27_16_x 28_18_x x x x x x x x x x x x x x x x x x 42_43_44_45_46_47_48_x 52_63_74_85_x 51_61_71_81_x x x x 31_21_11_x 32_23_14_x 43_44_45_46_47_48_x 53_64_75_86_x 52_62_72_82_x 51_x 41_x 31_x 32_22_12_x 33_24_15_x 44_45_46_47_48_x 54_65_76_87_x 53_63_73_83_x 52_61_x 42_41_x 32_21_x 33_23_13_x 34_25_16_x 45_46_47_48_x 55_66_77_88_x 54_64_74_84_x 53_62_71_x 43_42_41_x 33_22_11_x 34_24_14_x 35_26_17_x 46_47_48_x 56_67_78_x 55_65_75_85_x 54_63_72_81_x 44_43_42_41_x 34_23_12_x 35_25_15_x 36_27_18_x 47_48_x 57_68_x 56_66_76_86_x 55_64_73_82_x 45_44_43_42_41_x 35_24_13_x 36_26_16_x 37_28_x 48_x 58_x 57_67_77_87_x 56_65_74_83_x 46_45_44_43_42_41_x 36_25_14_x 37_27_17_x 38_x x x 58_68_78_88_x 57_66_75_84_x 47_46_45_44_43_42_41_x 37_26_15_x 38_28_18_x x x x x x x x x x x x x x x x x x 52_53_54_55_56_57_58_x 62_73_84_x 61_71_81_x x x x 41_31_21_11_x 42_33_24_15_x 53_54_55_56_57_58_x 63_74_85_x 62_72_82_x 61_x 51_x 41_x 42_32_22_12_x 43_34_25_16_x 54_55_56_57_58_x 64_75_86_x 63_73_83_x 62_71_x 52_51_x 42_31_x 43_33_23_13_x 44_35_26_17_x 55_56_57_58_x 65_76_87_x 64_74_84_x 63_72_81_x 53_52_51_x 43_32_21_x 44_34_24_14_x 45_36_27_18_x 56_57_58_x 66_77_88_x 65_75_85_x 64_73_82_x 54_53_52_51_x 44_33_22_11_x 45_35_25_15_x 46_37_28_x 57_58_x 67_78_x 66_76_86_x 65_74_83_x 55_54_53_52_51_x 45_34_23_12_x 46_36_26_16_x 47_38_x 58_x 68_x 67_77_87_x 66_75_84_x 56_55_54_53_52_51_x 46_35_24_13_x 47_37_27_17_x 48_x x x 68_78_88_x 67_76_85_x 57_56_55_54_53_52_51_x 47_36_25_14_x 48_38_28_18_x x x x x x x x x x x x x x x x x x 62_63_64_65_66_67_68_x 72_83_x 71_81_x x x x 51_41_31_21_11_x 52_43_34_25_16_x 63_64_65_66_67_68_x 73_84_x 72_82_x 71_x 61_x 51_x 52_42_32_22_12_x 53_44_35_26_17_x 64_65_66_67_68_x 74_85_x 73_83_x 72_81_x 62_61_x 52_41_x 53_43_33_23_13_x 54_45_36_27_18_x 65_66_67_68_x 75_86_x 74_84_x 73_82_x 63_62_61_x 53_42_31_x 54_44_34_24_14_x 55_46_37_28_x 66_67_68_x 76_87_x 75_85_x 74_83_x 64_63_62_61_x 54_43_32_21_x 55_45_35_25_15_x 56_47_38_x 67_68_x 77_88_x 76_86_x 75_84_x 65_64_63_62_61_x 55_44_33_22_11_x 56_46_36_26_16_x 57_48_x 68_x 78_x 77_87_x 76_85_x 66_65_64_63_62_61_x 56_45_34_23_12_x 57_47_37_27_17_x 58_x x x 78_88_x 77_86_x 67_66_65_64_63_62_61_x 57_46_35_24_13_x 58_48_38_28_18_x x x x x x x x x x x x x x x x x x 72_73_74_75_76_77_78_x 82_x 81_x x x x 61_51_41_31_21_11_x 62_53_44_35_26_17_x 73_74_75_76_77_78_x 83_x 82_x 81_x 71_x 61_x 62_52_42_32_22_12_x 63_54_45_36_27_18_x 74_75_76_77_78_x 84_x 83_x 82_x 72_71_x 62_51_x 63_53_43_33_23_13_x 64_55_46_37_28_x 75_76_77_78_x 85_x 84_x 83_x 73_72_71_x 63_52_41_x 64_54_44_34_24_14_x 65_56_47_38_x 76_77_78_x 86_x 85_x 84_x 74_73_72_71_x 64_53_42_31_x 65_55_45_35_25_15_x 66_57_48_x 77_78_x 87_x 86_x 85_x 75_74_73_72_71_x 65_54_43_32_21_x 66_56_46_36_26_16_x 67_58_x 78_x 88_x 87_x 86_x 76_75_74_73_72_71_x 66_55_44_33_22_11_x 67_57_47_37_27_17_x 68_x x x 88_x 87_x 77_76_75_74_73_72_71_x 67_56_45_34_23_12_x 68_58_48_38_28_18_x x x x x x x x x x x x x x x x x x 82_83_84_85_86_87_88_x x x x x x 71_61_51_41_31_21_11_x 72_63_54_45_36_27_18_x 83_84_85_86_87_88_x x x x 81_x 71_x 72_62_52_42_32_22_12_x 73_64_55_46_37_28_x 84_85_86_87_88_x x x x 82_81_x 72_61_x 73_63_53_43_33_23_13_x 74_65_56_47_38_x 85_86_87_88_x x x x 83_82_81_x 73_62_51_x 74_64_54_44_34_24_14_x 75_66_57_48_x 86_87_88_x x x x 84_83_82_81_x 74_63_52_41_x 75_65_55_45_35_25_15_x 76_67_58_x 87_88_x x x x 85_84_83_82_81_x 75_64_53_42_31_x 76_66_56_46_36_26_16_x 77_68_x 88_x x x x 86_85_84_83_82_81_x 76_65_54_43_32_21_x 77_67_57_47_37_27_17_x 78_x x x x x 87_86_85_84_83_82_81_x 77_66_55_44_33_22_11_x 78_68_58_48_38_28_18_x x';
+}
+
+// One direction of a move: `line` lists the squares from the placed disc to
+// the edge, then 'x'. The first n hold the opponent's discs (`theirs`) and
+// the square past them doesn't. The run flips when that square holds the
+// mover's disc: its squares then held the opponent's disc and hold the
+// mover's after the move (`flipped`). Returns the number of discs
+// flipped, or -100 when the direction is wrong, which makes the move's total
+// negative. A slice of no elements is an error in production, so a reach of
+// 0 checks no run.
+function reversiRun(b, theirs, flipped, line, n, me) {
+  let end = line[n];
+  let flips = b.get(end, '') == me;
+  return !theirs.hasAny([end]) && (n == 0 || (flips ? flipped : theirs).hasAll(line[0:n]))
+    ? (flips ? n : 0)
+    : -100;
+}
+
+// A move's directions flip `total` discs, at least one, and the board changes
+// on exactly the placed square and those discs.
+function reversiFlips(a, b, total) {
+  return total > 0 && a.diff(b).affectedKeys().size() == total + 1;
+}
+
+// `m` maps every square of `board` to `v`.
+function reversiFull(m, v, board) {
+  return m.size() == 64 && m.keys().hasOnly(board.keys()) && m.values().hasOnly([v]);
 }
 
 // The result a document claims agrees with its disc counts: play goes on
@@ -71,7 +92,7 @@ function reversiResult(d) {
 export function reversiCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'board', 'prevBoard', 'lastMove', 'counts', 'createdAt'])
+         'board', 'prevBoard', 'lastMove', 'counts', 'full', 'createdAt'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0
@@ -79,7 +100,10 @@ export function reversiCreate() {
     && request.resource.data.board == reversiStartBoard()
     && request.resource.data.prevBoard == reversiStartBoard()
     && request.resource.data.lastMove == {'at': '', 'runs': []}
-    && request.resource.data.counts == {'d': 2, 'l': 2};
+    && request.resource.data.counts == {'d': 2, 'l': 2}
+    && request.resource.data.full.size() == 2
+    && reversiFull(request.resource.data.full.d, 'd', request.resource.data.board)
+    && reversiFull(request.resource.data.full.l, 'l', request.resource.data.board);
 }
 
 export function reversiJoin() {
@@ -90,41 +114,42 @@ export function reversiCancel() {
   return canCancel();
 }
 
-// One disc placed by the player on turn. Every direction is checked, the
-// directions flip at least one disc between them, and the board changes on
-// exactly the placed square and the flipped discs. `status` and `winner`
-// follow the claim, checked against the counts.
+// One disc placed by the player on turn. Each direction's reach is checked
+// against the board, the runs it brackets flip, and the board changes on
+// exactly the placed square and those runs: every flipped square held the
+// opponent's disc and holds the mover's. Since the changed squares are the
+// placed square and the flips, the counts change by the number of changed
+// squares. `status` and `winner` follow the claim, checked against the counts.
 export function reversiMove() {
   let b = resource.data.board;
   let a = request.resource.data.board;
   let at = request.resource.data.lastMove.at;
-  let p = int(at);
   let me = resource.data.currentTurn == 'host' ? 'd' : 'l';
   let op = resource.data.currentTurn == 'host' ? 'l' : 'd';
   let r = request.resource.data.lastMove.runs;
-  // A direction with reach 0 needs only its first square not to be the
-  // opponent's, checked here without the cost of a call.
-  let total = (r[0] == 0 ? (b.get(string(p + 1), '') != op ? 0 : -100) : reversiRay(b, a, p, 1, r[0], me, op))
-    + (r[1] == 0 ? (b.get(string(p + 11), '') != op ? 0 : -100) : reversiRay(b, a, p, 11, r[1], me, op))
-    + (r[2] == 0 ? (b.get(string(p + 10), '') != op ? 0 : -100) : reversiRay(b, a, p, 10, r[2], me, op))
-    + (r[3] == 0 ? (b.get(string(p + 9), '') != op ? 0 : -100) : reversiRay(b, a, p, 9, r[3], me, op))
-    + (r[4] == 0 ? (b.get(string(p - 1), '') != op ? 0 : -100) : reversiRay(b, a, p, -1, r[4], me, op))
-    + (r[5] == 0 ? (b.get(string(p - 11), '') != op ? 0 : -100) : reversiRay(b, a, p, -11, r[5], me, op))
-    + (r[6] == 0 ? (b.get(string(p - 10), '') != op ? 0 : -100) : reversiRay(b, a, p, -10, r[6], me, op))
-    + (r[7] == 0 ? (b.get(string(p - 9), '') != op ? 0 : -100) : reversiRay(b, a, p, -9, r[7], me, op));
-  let c = request.resource.data.counts;
+  let rays = reversiRays().split(' ');
+  let i = 8 * (int(at) - 11);
+  let theirs = b.diff(resource.data.full[op]).unchangedKeys();
+  let flipped = theirs.intersection(a.diff(resource.data.full[me]).unchangedKeys());
   return request.auth != null && isPlaying() && isMyTurn() && turnFlipped() && moveIncremented()
     && request.resource.data.lastMove.keys().hasOnly(['at', 'runs'])
     && r.size() == 8
     && r.hasOnly([0, 1, 2, 3, 4, 5, 6, 7])
     && b[at] == ''
     && a[at] == me
-    && total > 0
-    && a.diff(b).affectedKeys().size() == total + 1
+    && reversiFlips(a, b,
+      reversiRun(b, theirs, flipped, rays[i].split('_'), r[0], me)
+      + reversiRun(b, theirs, flipped, rays[i + 1].split('_'), r[1], me)
+      + reversiRun(b, theirs, flipped, rays[i + 2].split('_'), r[2], me)
+      + reversiRun(b, theirs, flipped, rays[i + 3].split('_'), r[3], me)
+      + reversiRun(b, theirs, flipped, rays[i + 4].split('_'), r[4], me)
+      + reversiRun(b, theirs, flipped, rays[i + 5].split('_'), r[5], me)
+      + reversiRun(b, theirs, flipped, rays[i + 6].split('_'), r[6], me)
+      + reversiRun(b, theirs, flipped, rays[i + 7].split('_'), r[7], me))
     && request.resource.data.prevBoard == b
-    && c.size() == 2
-    && c[me] == resource.data.counts[me] + total + 1
-    && c[op] == resource.data.counts[op] - total
+    && request.resource.data.counts.size() == 2
+    && request.resource.data.counts[me] == resource.data.counts[me] + a.diff(b).affectedKeys().size()
+    && request.resource.data.counts[op] == resource.data.counts[op] + 1 - a.diff(b).affectedKeys().size()
     && reversiResult(request.resource.data)
     && onlyFieldsChanged(['board', 'prevBoard', 'lastMove', 'counts', 'currentTurn', 'moveCount', 'status', 'winner']);
 }

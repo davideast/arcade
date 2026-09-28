@@ -53,6 +53,8 @@ export interface ReversiFields {
   prevBoard: BoardMap;
   lastMove: StoredMove;
   counts: { d: number; l: number };
+  /** Every square mapped to each side's disc. Constant; the rules diff a board against it to find a side's squares. */
+  full: { d: BoardMap; l: BoardMap };
 }
 
 export type ReversiDoc = MatchDoc & ReversiFields;
@@ -90,7 +92,8 @@ export function positionOf(board: BoardMap, seat: Seat): Position {
 
 export function initialFields(): ReversiFields {
   const board = toMap(initialPosition().board);
-  return { board, prevBoard: board, lastMove: { at: '', runs: [] }, counts: { d: 2, l: 2 } };
+  const full = (side: Side) => toMap(Array(64).fill(side));
+  return { board, prevBoard: board, lastMove: { at: '', runs: [] }, counts: { d: 2, l: 2 }, full: { d: full('d'), l: full('l') } };
 }
 
 /** The match fields after the player on turn places a disc on `sq`. */

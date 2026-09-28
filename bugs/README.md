@@ -18,6 +18,8 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0032 and 0033 were found on local-6 while verifying the chess showcase rules against the Rules Test API; both are open and their repros exit 1 on local-6.
 
+0035 to 0037 were found on local-6 while fitting the Reversi move rule to production's expression budget; all three are open and their repros exit 1 on local-6.
+
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
 | [0001](0001-let-bound-member-method-rejected-by-resolver.md) | In a module, a method on a field of a get()/getAfter() document (or a let or parameter bound to one) is rejected | blocker | pyric | fixed (#768) |
@@ -54,3 +56,6 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0032](0032-firestore-simulator-ignores-expression-budget.md) | The Firestore rules simulator allows a request that production denies for passing the 1,000-expression budget | major | pyric | open |
 | [0033](0033-lint-silent-on-unbound-variable-and-unused-function.md) | Lint reports nothing for an unbound variable or an unused function, both of which production's compiler warns about | minor | pyric | open |
 | [0034](0034-local-engines-accept-rulesets-production-rejects-at-compile.md) | The Firestore simulator and Storage evaluator accept rulesets production rejects at compile time (call depth, let count, nesting), and Storage denies a 21-function chain production compiles | minor | pyric | open |
+| [0035](0035-simulator-set-membership-is-false.md) | In the Firestore rules simulator, `x in <set>` is false for an element the set holds | major | pyric | open |
+| [0036](0036-simulator-evaluates-list-operations-production-rejects.md) | The Firestore rules simulator evaluates `list + list` and a slice with no elements, both of which production rejects as evaluation errors | major | pyric | open |
+| [0037](0037-resolver-rejects-derived-set-membership-and-list-element-methods.md) | Module resolution rejects membership in a set built from request data, and a method on an element of a list built from request data | major | pyric | open |
