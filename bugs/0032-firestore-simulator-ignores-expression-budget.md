@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: dbc35150
 found_in: verifying the chess showcase rules against the Rules Test API
-status: open
+status: fixed
+fixed_in: eb748488 (#814, 7342c713)
 ---
 ## Summary
 
@@ -44,3 +45,9 @@ Count evaluated expressions in the evaluator with the same unit production uses 
 ## Workaround in pyric-games
 
 Run the game's worst-case writes through the Rules Test API before relying on a simulator pass. Reversi's recorded worst case (1,034 simulator nodes) is the first candidate.
+
+## Fixed
+
+Fixed by Pyric PR #814, merged as 7342c713, and verified on Pyric main eb748488 (vendored as local-7). The Firestore simulator counts evaluated expressions and denies a request at production's limit of 1,000 with production's message. `bun bugs/repro/0032.ts` exits 0: about 1,080 comparisons in one request are DENY in the simulator, as in production.
+
+Nothing to drop in the arcade. The Reversi move rule was restructured to fit the budget before this fix landed; the local-7 rules test runs every game under the limit.

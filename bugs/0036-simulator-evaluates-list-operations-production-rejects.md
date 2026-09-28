@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: dbc35150
 found_in: restructuring the Reversi move rule to fit production's expression budget
-status: open
+status: fixed
+fixed_in: eb748488 (#804, f56a3d8e; #815, 4774386c)
 ---
 ## Summary
 
@@ -49,3 +50,9 @@ Measure `[0:0]`, `[1:1]` and `[2:1]` on a list and a string in the Rules Test AP
 ## Workaround in pyric-games
 
 The Reversi move rule sums per-direction counts instead of concatenating lists, and a direction with reach 0 checks no run instead of slicing `[0:0]`.
+
+## Fixed
+
+Fixed by Pyric PRs #804, merged as f56a3d8e, which makes `list + list` an evaluation error, and #815, merged as 4774386c, which bounds slices as production does, and verified on Pyric main eb748488 (vendored as local-7). `list + list` and a slice with no elements are evaluation errors, as in production. `bun bugs/repro/0036.ts` exits 0: both are DENY and the `concat()` and one-element slice controls are ALLOW.
+
+The checkers and chess move rules and the battleship fleet check used `list + list`, which local-7 denies as production does; they now build the same lists with `concat()`.

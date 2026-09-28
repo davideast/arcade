@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 8b3c2c84
 found_in: restructuring the Reversi move rule to fit production's expression budget
-status: open
+status: fixed
+fixed_in: eb748488 (#817, 9f30fe36)
 ---
 ## Summary
 
@@ -48,3 +49,9 @@ For `cloud.firestore`, accept membership in and methods on derived values whose 
 ## Workaround in pyric-games
 
 The Reversi move rule indexes the rays table with the move's square, which the analysis does not mark as derived, and tests sets with `hasAll` and `hasAny` instead of `in`.
+
+## Fixed
+
+Fixed by Pyric PR #817, merged as 9f30fe36, and verified on Pyric main eb748488 (vendored as local-7). Module resolution accepts membership in a set built from request data and a method on an element of a list built from request data. `bun bugs/repro/0037.ts` exits 0: every case resolves.
+
+Nothing to drop in the arcade: the Reversi move rule does not depend on either form.
