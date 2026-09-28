@@ -33,7 +33,11 @@ export const sdkConfig: Step = {
   },
 };
 
-/** Resolve the modular rules into the plain ruleset Firestore deploys. */
+/**
+ * Resolve the modular rules into the plain rulesets production loads:
+ * app/firestore.rules from app/firestore.modules.rules, and app/storage.rules
+ * from app/storage.modules.rules.
+ */
 export const resolveRules: Step = {
   name: 'resolve rules',
   done: async () => false,

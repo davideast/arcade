@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "rules:resolve": "pyric firestore rules resolve firestore.modules.rules --out firestore.rules"
+    "rules:resolve": "pyric firestore rules resolve firestore.modules.rules --out firestore.rules && pyric storage rules resolve storage.modules.rules --out storage.rules"
   },
   "dependencies": {
     "@games/air-hockey": "workspace:*",
