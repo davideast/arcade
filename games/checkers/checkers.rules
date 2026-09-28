@@ -4,6 +4,8 @@ import { validCreate, validJoin, canCancel } from 'lobby';
 import { onlyFieldsChanged } from 'lifecycle';
 import { isMyTurn, turnFlipped } from 'turns';
 import { isPlaying, moveIncremented } from 'state';
+import { resignedBy } from 'results';
+import { file, rank } from 'geometry';
 
 // Checkers match rules. The host plays dark ('d', king 'D') and moves first;
 // the guest plays light ('l', king 'L'). The match document follows the stdlib
@@ -28,27 +30,19 @@ function checkersStartBoard() {
   };
 }
 
-// File and rank of a square name as numbers.
-function ckFile(sq) {
-  return {'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5, 'f': 6, 'g': 7, 'h': 8}[sq[0:1]];
-}
-
-function ckRank(sq) {
-  return int(sq[1:2]);
-}
-
-// One diagonal square.
+// One diagonal square. Comparing file and rank differences costs less than
+// testing each of the four neighbors with the geometry module's step().
 function ckStep(from, to) {
-  return (ckFile(to) - ckFile(from) == 1 || ckFile(to) - ckFile(from) == -1)
-    && (ckRank(to) - ckRank(from) == 1 || ckRank(to) - ckRank(from) == -1);
+  return (file(to) - file(from) == 1 || file(to) - file(from) == -1)
+    && (rank(to) - rank(from) == 1 || rank(to) - rank(from) == -1);
 }
 
 // Two diagonal squares, over the captured square between them.
 function ckJump(from, to, captured) {
-  return (ckFile(to) - ckFile(from) == 2 || ckFile(to) - ckFile(from) == -2)
-    && (ckRank(to) - ckRank(from) == 2 || ckRank(to) - ckRank(from) == -2)
-    && ckFile(captured) * 2 == ckFile(from) + ckFile(to)
-    && ckRank(captured) * 2 == ckRank(from) + ckRank(to);
+  return (file(to) - file(from) == 2 || file(to) - file(from) == -2)
+    && (rank(to) - rank(from) == 2 || rank(to) - rank(from) == -2)
+    && file(captured) * 2 == file(from) + file(to)
+    && rank(captured) * 2 == rank(from) + rank(to);
 }
 
 export function checkersCreate() {
@@ -94,7 +88,7 @@ export function checkersMove() {
     && request.resource.data.board[from] == ''
     && (request.resource.data.board[to] == piece
         || (piece == (dark ? 'd' : 'l') && request.resource.data.board[to] == (dark ? 'D' : 'L')
-            && to[1:2] == (dark ? '8' : '1')))
+            && rank(to) == (dark ? 8 : 1)))
     && request.resource.data.board.keys().hasOnly(resource.data.board.keys())
     && request.resource.data.board.diff(resource.data.board).affectedKeys()
          .hasOnly([from, to].concat(request.resource.data.lastMove.captures))
@@ -103,10 +97,7 @@ export function checkersMove() {
     && onlyFieldsChanged(['board', 'prevBoard', 'lastMove', 'currentTurn', 'moveCount', 'status', 'winner']);
 }
 
+// The caller resigns their own seat; the other seat wins.
 export function checkersResign() {
-  let uid = request.auth.uid;
-  return request.auth != null && isPlaying()
-    && (uid == resource.data.host || uid == resource.data.guest)
-    && onlyFieldsChanged(['status', 'winner'])
-    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+  return resignedBy(request.auth.uid == resource.data.host ? 'host' : 'guest');
 }

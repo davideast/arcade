@@ -239,6 +239,31 @@ async function endings(): Promise<string[]> {
     env.failures.push(...wrong.failures);
   }
   {
+    // Single jumps from c3 that land the wrong distance away. One and three
+    // squares have no square midway; two files by four ranks and four files by
+    // two ranks name the square midway, so only the distance checks deny them.
+    const far = setup(94);
+    await createAndJoin(far);
+    const blank = Object.fromEntries(Object.keys(far.stored().board).map((sq) => [sq, '']));
+    const b = { ...blank, c3: 'd', d4: 'l', h2: 'l' };
+    far.sandbox.admin.setDocument(far.path, { ...far.stored(), board: b, prevBoard: b, moveCount: 30 } as unknown as Data);
+    const doc = far.stored();
+    const jumpOver = legalMoves(positionOf(b, 'host')).find((m) => m.captures.length === 1)!;
+    const real = moveUpdate(doc, jumpOver);
+    const jumps: Array<[string, string, string]> = [
+      ['a jump of one square', 'b4', 'd4'],
+      ['a jump of three squares', 'f6', 'd4'],
+      ['a jump of two files and four ranks', 'e7', 'd5'],
+      ['a jump of four files and two ranks', 'g5', 'e4'],
+    ];
+    for (const [label, to, captured] of jumps) {
+      const board = { ...b, c3: '', [to]: 'd', ...(captured in b ? { [captured]: '' } : {}) };
+      await far.expectDenied(label, far.dbFor.host, { ...real, board, lastMove: { path: ['c3', to], captures: [captured] } });
+    }
+    await far.expectAllowed('jump over d4 from c3', far.dbFor.host, real);
+    env.failures.push(...far.failures);
+  }
+  {
     // A dark man reaching the far row is crowned: a7 to b8.
     const crown = setup(95);
     await createAndJoin(crown);
