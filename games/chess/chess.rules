@@ -87,7 +87,7 @@ export function chessMove() {
             && request.resource.data.lastMove.extra == [mv.to[0:1] + mv.from[1:2]]))
     && request.resource.data.board.keys().hasOnly(resource.data.board.keys())
     && request.resource.data.board.diff(resource.data.board).affectedKeys()
-         .hasOnly([mv.from, mv.to] + request.resource.data.lastMove.extra)
+         .hasOnly([mv.from, mv.to].concat(request.resource.data.lastMove.extra))
     && request.resource.data.prevBoard == resource.data.board
     && request.resource.data.prevCastling == resource.data.castling
     && request.resource.data.prevEnPassant == resource.data.enPassant

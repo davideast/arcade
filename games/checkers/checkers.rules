@@ -97,7 +97,7 @@ export function checkersMove() {
             && to[1:2] == (dark ? '8' : '1')))
     && request.resource.data.board.keys().hasOnly(resource.data.board.keys())
     && request.resource.data.board.diff(resource.data.board).affectedKeys()
-         .hasOnly([from, to] + request.resource.data.lastMove.captures)
+         .hasOnly([from, to].concat(request.resource.data.lastMove.captures))
     && request.resource.data.prevBoard == resource.data.board
     && request.resource.data.winner == (request.resource.data.status == 'won' ? resource.data.currentTurn : '')
     && onlyFieldsChanged(['board', 'prevBoard', 'lastMove', 'currentTurn', 'moveCount', 'status', 'winner']);

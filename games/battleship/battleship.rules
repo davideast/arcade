@@ -50,8 +50,9 @@ function bsValidFleet() {
     && request.resource.data.dirs.size() == 5
     && bsInBounds(st[0], d[0], 5) && bsInBounds(st[1], d[1], 4) && bsInBounds(st[2], d[2], 3)
     && bsInBounds(st[3], d[3], 3) && bsInBounds(st[4], d[4], 2)
-    && request.resource.data.cells == bsCells5(st[0], bsStep(d[0])) + bsCells4(st[1], bsStep(d[1]))
-         + bsCells3(st[2], bsStep(d[2])) + bsCells3(st[3], bsStep(d[3])) + bsCells2(st[4], bsStep(d[4]))
+    && request.resource.data.cells == bsCells5(st[0], bsStep(d[0])).concat(bsCells4(st[1], bsStep(d[1])))
+         .concat(bsCells3(st[2], bsStep(d[2]))).concat(bsCells3(st[3], bsStep(d[3])))
+         .concat(bsCells2(st[4], bsStep(d[4])))
     && request.resource.data.cells.toSet().size() == 17;
 }
 
