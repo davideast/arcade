@@ -325,7 +325,7 @@ export class BattleshipScene extends Phaser.Scene {
         else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, how, {
           game: COLLECTION,
           matchId: this.matchId,
-          fresh: (uid) => ({ ...createdMatch(uid) }),
+          fresh: (uid) => ({ ...createdMatch(uid), rematchOf: this.matchId }),
           join: joinBattleship,
           open: (id) => (location.hash = `#/play/battleship/${id}`),
           onError: (error) => this.report(error),

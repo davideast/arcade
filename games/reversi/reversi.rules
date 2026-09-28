@@ -93,7 +93,7 @@ function reversiResult(d) {
 export function reversiCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'board', 'prevBoard', 'lastMove', 'counts', 'full', 'createdAt'])
+         'board', 'prevBoard', 'lastMove', 'counts', 'full', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

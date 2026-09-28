@@ -52,7 +52,7 @@ export function ticTacToeCreate() {
   let board = request.resource.data.board;
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status',
-         'winner', 'moveCount', 'board', 'lastMove', 'createdAt'])
+         'winner', 'moveCount', 'board', 'lastMove', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

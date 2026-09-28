@@ -183,7 +183,7 @@ export class TicTacToeScene extends Phaser.Scene {
         else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, how, {
           game: ticTacToe.id,
           matchId: this.matchId,
-          fresh: (uid) => createdMatch(ticTacToe, uid),
+          fresh: (uid) => ({ ...createdMatch(ticTacToe, uid), rematchOf: this.matchId }),
           join: (c, id) => joinMatch(c, ticTacToe, id),
           open: (id) => (location.hash = `#/play/tictactoe/${id}`),
           onError: (error) => this.report(error),

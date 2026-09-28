@@ -48,7 +48,7 @@ function ckJump(from, to, captured) {
 export function checkersCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'board', 'prevBoard', 'lastMove', 'createdAt'])
+         'board', 'prevBoard', 'lastMove', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

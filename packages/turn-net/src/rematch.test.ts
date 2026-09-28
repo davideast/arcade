@@ -16,11 +16,12 @@ const rules = await Bun.file(new URL('../../../app/firestore.rules', import.meta
 
 type Data = Record<string, unknown>;
 
-const FRESH: Record<string, (uid: string) => Data> = {
-  tictactoe: (uid) => createdMatch(ticTacToe, uid),
+/** The new match each game's client writes; two-seat games name the finished match in `rematchOf`. */
+const FRESH: Record<string, (uid: string, finished: string) => Data> = {
+  tictactoe: (uid, finished) => ({ ...createdMatch(ticTacToe, uid), rematchOf: finished }),
   uno: (uid) => ({ ...unoTable(uid) }),
-  battleship: (uid) => ({ ...battleshipMatch(uid) }),
-  reversi: (uid) => createdMatch(reversi, uid),
+  battleship: (uid, finished) => ({ ...battleshipMatch(uid), rematchOf: finished }),
+  reversi: (uid, finished) => ({ ...createdMatch(reversi, uid), rematchOf: finished }),
 };
 
 function setup() {
@@ -56,7 +57,7 @@ function setup() {
     const id = options.match ?? `next${next++}`;
     const db = as(uid);
     const batch = db.batch();
-    if (options.create !== false) batch.set(db.doc(`${game}/${id}`), { ...FRESH[game](uid), createdAt: FieldValue.serverTimestamp() });
+    if (options.create !== false) batch.set(db.doc(`${game}/${id}`), { ...FRESH[game](uid, finished), createdAt: FieldValue.serverTimestamp() });
     const rematch = { game, match: id, by: uid };
     batch.set(db.doc(`rematches/${game}/matches/${finished}`), options.change ? options.change(rematch) : rematch);
     return { id, commit: () => batch.commit() };
@@ -99,7 +100,7 @@ describe('rematch Security Rules', () => {
     await denied('propose in a collection outside the arcade', async () => {
       const db = as('guest-uid');
       const batch = db.batch();
-      batch.set(db.doc('scores/next'), { ...FRESH.tictactoe('guest-uid'), createdAt: FieldValue.serverTimestamp() });
+      batch.set(db.doc('scores/next'), { ...FRESH.tictactoe('guest-uid', 'resigned'), createdAt: FieldValue.serverTimestamp() });
       batch.set(db.doc('rematches/scores/matches/resigned'), { game: 'scores', match: 'next', by: 'guest-uid' });
       await batch.commit();
     });
@@ -109,6 +110,15 @@ describe('rematch Security Rules', () => {
       const db = getFirestore(env.sandbox.withAuth(null as never));
       await db.doc('rematches/tictactoe/matches/resigned').set({ game: 'tictactoe', match: 'nobody', by: '' });
     });
+
+    // A new match that names a finished match in `rematchOf`, written without
+    // the rematch document: its own create rule checks the finished match.
+    const openNaming = (uid: string, id: string, finished: string) => () =>
+      as(uid).doc(`tictactoe/${id}`).set({ ...FRESH.tictactoe(uid, finished), createdAt: FieldValue.serverTimestamp() });
+    await denied('open a match that names a match in play as its rematchOf', openNaming('host-uid', 'direct1', 'playing'));
+    await denied('open a match that names a waiting match as its rematchOf', openNaming('host-uid', 'direct2', 'waiting'));
+    await denied('a stranger opens a match that names a finished match', openNaming('stranger-uid', 'direct3', 'resigned'));
+    await denied('open a match that names a match that does not exist', openNaming('guest-uid', 'direct4', 'missing'));
 
     // Real rematches: resigned, drawn, and won matches; two-seat and Uno.
     const first = propose('guest-uid', 'tictactoe', 'resigned');

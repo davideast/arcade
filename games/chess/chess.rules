@@ -42,7 +42,7 @@ function chessCastleSquares(piece, color, from, to, extra) {
 export function chessCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'board', 'castling', 'enPassant', 'prevBoard', 'prevCastling', 'prevEnPassant', 'lastMove', 'createdAt'])
+         'board', 'castling', 'enPassant', 'prevBoard', 'prevCastling', 'prevEnPassant', 'lastMove', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

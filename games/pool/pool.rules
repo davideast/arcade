@@ -101,7 +101,7 @@ function poolShotBasics() {
 export function poolCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'balls', 'potted', 'prevBalls', 'prevPotted', 'shot', 'scratch', 'hostGroup', 'createdAt'])
+         'balls', 'potted', 'prevBalls', 'prevPotted', 'shot', 'scratch', 'hostGroup', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

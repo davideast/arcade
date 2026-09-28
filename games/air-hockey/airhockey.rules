@@ -31,7 +31,7 @@ function airHockeyScoreIs(s, hostMax, guestMax) {
 export function airHockeyCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'score', 'endedBy', 'createdAt'])
+         'score', 'endedBy', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0

@@ -1,10 +1,25 @@
 rules_version = '2+modules';
 
+import { validRematch } from 'lobby';
+
 // Rematch rules. rematches/{game}/matches/{matchId} names the match that
 // follows the finished match `matchId` in the `game` collection:
 // { game, match, by }. A player of the finished match writes it in the batch
 // that creates the new match, which they host, so the named match is new and
 // real. Create-only: a finished match has at most one rematch.
+//
+// In the two-seat games the new match also names the finished match in
+// `rematchOf`, and its create checks it with the lobby module's validRematch:
+// the finished match seated the caller, and the new match opens with the
+// caller as host. Uno and Yacht seat players in a `players` list, which
+// validRematch does not read, so their new matches carry no `rematchOf`.
+
+// A match create in `game`: a new match that names no finished match, or a
+// rematch whose `rematchOf` names a finished match the caller played.
+export function newMatchOrRematch(db, game) {
+  return !('rematchOf' in request.resource.data)
+    || validRematch(/databases/$(db)/documents/$(game)/$(request.resource.data.rematchOf));
+}
 
 function isFinished(d) {
   return d.status in ['won', 'draw', 'resigned'];
