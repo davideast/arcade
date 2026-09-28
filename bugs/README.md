@@ -20,6 +20,10 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0035 to 0037 were found on local-6 while fitting the Reversi move rule to production's expression budget; all three are open and their repros exit 1 on local-6.
 
+0032, 0033 and 0035 to 0037 are fixed on Pyric main eb748488, vendored here as local-7; their repros exit 0 there. 0034 is still open: its nesting case exits 1 on local-7. 0008 and 0029 exit 0 on local-7 when the repository has no ancestor directory with a `firebase.json`; the dev server reads the nearest one above the Vite root, so a checkout nested inside another checkout that has one serves that checkout's rules.
+
+0039 was found on local-7 while moving the Storage rules to a 2+modules source; its repro exits 1 on local-7.
+
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
 | [0001](0001-let-bound-member-method-rejected-by-resolver.md) | In a module, a method on a field of a get()/getAfter() document (or a let or parameter bound to one) is rejected | blocker | pyric | fixed (#768) |
@@ -53,9 +57,10 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0029](0029-rtdb-rules-created-after-start-never-load.md) | The dev server never loads a `database.rules.json` created after it starts; RTDB stays deny-all until a restart | major | @pyric/cli | fixed (#796) |
 | [0030](0030-rules-string-escapes-differ-from-production.md) | Rules string literals reject the `\x`, `\u` and octal escapes production accepts, and accept the `\/` escape production rejects | minor | pyric | fixed (#798) |
 | [0031](0031-rules-assembler-prints-unparseable-string.md) | The rules assembler prints a double-quoted string that contains an apostrophe as an unparseable single-quoted string | minor | pyric | fixed (#799) |
-| [0032](0032-firestore-simulator-ignores-expression-budget.md) | The Firestore rules simulator allows a request that production denies for passing the 1,000-expression budget | major | pyric | open |
-| [0033](0033-lint-silent-on-unbound-variable-and-unused-function.md) | Lint reports nothing for an unbound variable or an unused function, both of which production's compiler warns about | minor | pyric | open |
+| [0032](0032-firestore-simulator-ignores-expression-budget.md) | The Firestore rules simulator allows a request that production denies for passing the 1,000-expression budget | major | pyric | fixed (#814) |
+| [0033](0033-lint-silent-on-unbound-variable-and-unused-function.md) | Lint reports nothing for an unbound variable or an unused function, both of which production's compiler warns about | minor | pyric | fixed (#813) |
 | [0034](0034-local-engines-accept-rulesets-production-rejects-at-compile.md) | The Firestore simulator and Storage evaluator accept rulesets production rejects at compile time (call depth, let count, nesting), and Storage denies a 21-function chain production compiles | minor | pyric | open |
-| [0035](0035-simulator-set-membership-is-false.md) | In the Firestore rules simulator, `x in <set>` is false for an element the set holds | major | pyric | open |
-| [0036](0036-simulator-evaluates-list-operations-production-rejects.md) | The Firestore rules simulator evaluates `list + list` and a slice with no elements, both of which production rejects as evaluation errors | major | pyric | open |
-| [0037](0037-resolver-rejects-derived-set-membership-and-list-element-methods.md) | Module resolution rejects membership in a set built from request data, and a method on an element of a list built from request data | major | pyric | open |
+| [0035](0035-simulator-set-membership-is-false.md) | In the Firestore rules simulator, `x in <set>` is false for an element the set holds | major | pyric | fixed (#815, #819) |
+| [0036](0036-simulator-evaluates-list-operations-production-rejects.md) | The Firestore rules simulator evaluates `list + list` and a slice with no elements, both of which production rejects as evaluation errors | major | pyric | fixed (#804, #815) |
+| [0037](0037-resolver-rejects-derived-set-membership-and-list-element-methods.md) | Module resolution rejects membership in a set built from request data, and a method on an element of a list built from request data | major | pyric | fixed (#817) |
+| [0039](0039-source-map-names-firestore-rules-for-root-lines.md) | The resolved ruleset's source map names `firestore.rules` as the file of the root file's `service` line and of the `let` bindings in its functions | minor | pyric | open |
