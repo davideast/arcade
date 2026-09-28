@@ -18,6 +18,8 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0032 and 0033 were found on local-6 while verifying the chess showcase rules against the Rules Test API; both are open and their repros exit 1 on local-6.
 
+0038 was found checking the restructured Reversi move rule's lint estimate against production; it is open and its repro exits 1 on local-6.
+
 | ID | Title | Severity | Package | Status |
 |---|---|---|---|---|
 | [0001](0001-let-bound-member-method-rejected-by-resolver.md) | In a module, a method on a field of a get()/getAfter() document (or a let or parameter bound to one) is rejected | blocker | pyric | fixed (#768) |
@@ -54,3 +56,4 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0032](0032-firestore-simulator-ignores-expression-budget.md) | The Firestore rules simulator allows a request that production denies for passing the 1,000-expression budget | major | pyric | open |
 | [0033](0033-lint-silent-on-unbound-variable-and-unused-function.md) | Lint reports nothing for an unbound variable or an unused function, both of which production's compiler warns about | minor | pyric | open |
 | [0034](0034-local-engines-accept-rulesets-production-rejects-at-compile.md) | The Firestore simulator and Storage evaluator accept rulesets production rejects at compile time (call depth, let count, nesting), and Storage denies a 21-function chain production compiles | minor | pyric | open |
+| [0038](0038-lint-expression-estimate-below-production.md) | The EXPRESSION_BUDGET estimate is below production's count for ternaries that take their false branch, so a rule production stops at the limit lints silent | major | pyric | open |
