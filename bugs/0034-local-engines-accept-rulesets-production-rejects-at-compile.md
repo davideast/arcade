@@ -9,7 +9,7 @@ status: open
 ---
 ## Summary
 
-Production's compiler rejects a ruleset when one call stack holds 22 functions ("Maximum allowed call depth of 20 is reached"), when a function has 12 `let` bindings ("Maximum allowed variable count of 10 for a given function has been reached"), or when an expression nests 98 levels ("Expression is too complex to evaluate safely"). It compiles 21 functions, 11 bindings and 97 levels. Pyric's Firestore simulator and Storage evaluator accept all four rejected shapes and allow the request, so a ruleset that passes every local test can fail to deploy. Separately, the Storage evaluator caps call depth at 20 and denies a 21-function chain production compiles and allows.
+Production's compiler rejects a ruleset when one call stack holds 22 functions ("Maximum allowed call depth of 20 is reached"), when a function has 12 `let` bindings ("Maximum allowed variable count of 10 for a given function has been reached"), or when an expression nests too deep ("Expression is too complex to evaluate safely"): 98 parenthesized levels around a comparison, or 99 around a bare literal, which sits one level shallower. It compiles 21 functions, 11 bindings, 97 levels around a comparison and 98 around a literal. Pyric's Firestore simulator and Storage evaluator accept all four rejected shapes and allow the request, so a ruleset that passes every local test can fail to deploy. Separately, the Storage evaluator caps call depth at 20 and denies a 21-function chain production compiles and allows.
 
 ## Reproduction
 
@@ -19,7 +19,7 @@ From the repository root:
 bun bugs/repro/0034.ts
 ```
 
-The script simulates a read under three rulesets: a 22-function call chain, a function with 12 `let` bindings, and a condition wrapped in 98 parentheses.
+The script simulates a read under three rulesets: a 22-function call chain, a function with 12 `let` bindings, and a bare `true` wrapped in 99 parentheses.
 
 ## Expected
 
@@ -32,7 +32,7 @@ On local-6 (exit 1):
 ```text
 call stack of 22 functions: simulate ALLOW; production rejects the ruleset at compile time
 function with 12 let bindings: simulate ALLOW; production rejects the ruleset at compile time
-expression nested 98 levels: simulate ALLOW; production rejects the ruleset at compile time
+literal in 99 parentheses: simulate ALLOW; production rejects the ruleset at compile time
 ```
 
 ## Suspected cause
