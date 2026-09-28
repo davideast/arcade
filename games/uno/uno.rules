@@ -8,10 +8,7 @@ rules_version = '2+modules';
 // direction, skips, draw penalties and hand counts follow from the card.
 
 import { signedIn } from './uno-shared';
-
-function unoMyTurn() {
-  return resource.data.players[resource.data.turn] == request.auth.uid;
-}
+import { isSeatTurn } from 'turns';
 
 // Seat reached from the current turn after `step` seats in `direction`.
 function unoSeat(turn, direction, step, size) {
@@ -101,7 +98,7 @@ export function unoPlay(db, id) {
   let size = resource.data.players.size();
   let won = request.resource.data.counts[resource.data.turn] == 0;
   return resource.data.status == 'playing'
-    && unoMyTurn()
+    && isSeatTurn(resource.data.players, resource.data.turn)
     && resource.data.pending == 0
     && get(/databases/$(db)/documents/uno/$(id)/draws/$(i)).data.uid == request.auth.uid
     && !exists(/databases/$(db)/documents/uno/$(id)/played/$(i))
@@ -126,7 +123,7 @@ export function unoDraw() {
   let k = resource.data.pending > 0 ? resource.data.pending : 1;
   let available = resource.data.drawIndex + k <= 108 ? k : 108 - resource.data.drawIndex;
   return resource.data.status == 'playing'
-    && unoMyTurn()
+    && isSeatTurn(resource.data.players, resource.data.turn)
     && request.resource.data.lastAction == (available > 0 ? 'draw' : 'pass')
     && request.resource.data.drawIndex == resource.data.drawIndex + available
     && unoCountsMoved(available)
@@ -173,7 +170,7 @@ function unoDrawsCreateFor(before, after, n) {
           && n < before.players.size() * 7
           && request.resource.data.uid == before.players[n % before.players.size()])
       || (after.lastAction == 'draw'
-          && before.players[before.turn] == request.auth.uid
+          && isSeatTurn(before.players, before.turn)
           && request.resource.data.uid == request.auth.uid
           && n >= before.drawIndex && n < after.drawIndex));
 }
@@ -192,6 +189,6 @@ function unoPlayedCreateFor(before, after, n) {
           && n == before.players.size() * 7)
       || (after.lastAction == 'play'
           && after.lastCard == n
-          && before.players[before.turn] == request.auth.uid
+          && isSeatTurn(before.players, before.turn)
           && after.moveCount == before.moveCount + 1));
 }
