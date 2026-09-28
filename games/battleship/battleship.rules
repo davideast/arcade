@@ -2,6 +2,8 @@ rules_version = '2+modules';
 
 import { onlyFieldsChanged } from 'lifecycle';
 import { isMyTurn } from 'turns';
+import { resignedBy } from 'results';
+import { ownerOnlyUntil } from 'content';
 
 // Battleship match rules. The match document follows the stdlib convention
 // (host, guest, currentTurn, status, winner, moveCount) plus hostReady,
@@ -112,10 +114,10 @@ export function battleshipBoardCreate(db, id, uid) {
     && bsValidFleet();
 }
 
+// The owner reads their fleet at any time without a read of the match; the
+// other player reads it once the match is won or resigned.
 export function battleshipBoardRead(db, id, uid) {
-  let m = get(/databases/$(db)/documents/battleship/$(id)).data;
-  return request.auth != null
-    && (request.auth.uid == uid || m.status in ['won', 'resigned']);
+  return ownerOnlyUntil(/databases/$(db)/documents/battleship/$(id), uid, ['won', 'resigned']);
 }
 
 // The shot document: fired by the player on turn, named for their seat and the
@@ -163,10 +165,7 @@ export function battleshipShot(db, id) {
     && onlyFieldsChanged([seat + 'Hits', 'currentTurn', 'moveCount', 'lastShot', 'status', 'winner']);
 }
 
+// The caller resigns their own seat; the other seat wins.
 export function battleshipResign() {
-  let uid = request.auth.uid;
-  return request.auth != null && resource.data.status == 'playing'
-    && (uid == resource.data.host || uid == resource.data.guest)
-    && onlyFieldsChanged(['status', 'winner'])
-    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+  return resignedBy(request.auth.uid == resource.data.host ? 'host' : 'guest');
 }
