@@ -18,6 +18,7 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 
 0032 and 0033 were found on local-6 while verifying the chess showcase rules against the Rules Test API; both are open and their repros exit 1 on local-6.
 
+0038 was found checking the restructured Reversi move rule's lint estimate against production; it is open and its repro exits 1 on local-6.
 0035 to 0037 were found on local-6 while fitting the Reversi move rule to production's expression budget; all three are open and their repros exit 1 on local-6.
 
 0032, 0033 and 0035 to 0037 are fixed on Pyric main eb748488, vendored here as local-7; their repros exit 0 there. 0034 is still open: its nesting case exits 1 on local-7. 0008 and 0029 exit 0 on local-7 when the repository has no ancestor directory with a `firebase.json`; the dev server reads the nearest one above the Vite root, so a checkout nested inside another checkout that has one serves that checkout's rules.
@@ -63,4 +64,5 @@ All eight are fixed on Pyric main 87a5303e, vendored here as local-4. Every repr
 | [0035](0035-simulator-set-membership-is-false.md) | In the Firestore rules simulator, `x in <set>` is false for an element the set holds | major | pyric | fixed (#815, #819) |
 | [0036](0036-simulator-evaluates-list-operations-production-rejects.md) | The Firestore rules simulator evaluates `list + list` and a slice with no elements, both of which production rejects as evaluation errors | major | pyric | fixed (#804, #815) |
 | [0037](0037-resolver-rejects-derived-set-membership-and-list-element-methods.md) | Module resolution rejects membership in a set built from request data, and a method on an element of a list built from request data | major | pyric | fixed (#817) |
+| [0038](0038-lint-expression-estimate-below-production.md) | The EXPRESSION_BUDGET estimate is below production's count for ternaries that take their false branch, so a rule production stops at the limit lints silent | major | pyric | open |
 | [0039](0039-source-map-names-firestore-rules-for-root-lines.md) | The resolved ruleset's source map names `firestore.rules` as the file of the root file's `service` line and of the `let` bindings in its functions | minor | pyric | open |
