@@ -2,7 +2,7 @@
 // Prints every issue and exits 1 on an error. EXPRESSION_BUDGET warnings are
 // summarized: they are static estimates, and each must stay under the
 // 1,000-expression runtime budget production enforces per request.
-// Then checks app/storage.rules. Pyric's Storage lint is a parse, so a
+// Then checks app/storage.rules, resolved from app/storage.modules.rules. Pyric's Storage lint is a parse, so a
 // Storage ruleset that doesn't parse is the error it can report.
 import { lint } from 'pyric/rules';
 import { parseStorageRules } from 'pyric/storage';

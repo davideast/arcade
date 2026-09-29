@@ -11,10 +11,10 @@
  * The rules can't replay a move list: a well-formed score and upload whose
  * moves don't solve the level is allowed, and verifyEntry must flag it.
  *
- * Removal probes (.overnight/probe-sokoban.ts, tools/removal-probe.ts): 36
+ * Removal probes (.overnight/probe-sokoban.ts, tools/removal-probe.ts): 35
  * probes, each a check removed or a missing grant added (delete or update of
  * a score, update or delete of an object).
- *   Firestore, 23: 21 caught. The 2 not caught are implied:
+ *   Firestore, 22: 20 caught. The 2 not caught are implied:
  *   - `request.auth != null` in sokobanScore: the next check reads
  *     request.auth.uid, which errors without auth, so the rule denies.
  *   - `level in sokobanLevels()`: `sokobanLevels()[level]` is read for the

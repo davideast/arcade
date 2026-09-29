@@ -250,7 +250,7 @@ export class ReversiScene extends Phaser.Scene {
         else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${how}${forgedNote}`, {
           game: reversi.id,
           matchId: this.matchId,
-          fresh: (uid) => createdMatch(reversi, uid),
+          fresh: (uid) => ({ ...createdMatch(reversi, uid), rematchOf: this.matchId }),
           join: (c, id) => joinMatch(c, reversi, id),
           open: (id) => (location.hash = `#/play/reversi/${id}`),
           onError: (error) => this.report(error),

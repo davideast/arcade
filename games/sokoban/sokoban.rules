@@ -1,5 +1,7 @@
 rules_version = '2+modules';
 
+import { improvedBy } from 'counters';
+
 // Sokoban score rules. A score is `sokoban/{level}/scores/{uid}`: one per
 // player per level, holding that player's best solve. Its fields are uid,
 // level, moves, pushes, solve (the solve's id), object (the Storage object
@@ -14,7 +16,7 @@ rules_version = '2+modules';
 // delete: a score stays on the leaderboard.
 //
 // The rules can't replay a move list or see Storage. The Storage rules
-// (app/storage.rules) allow the object only when this document names it;
+// (app/storage.modules.rules) allow the object only when this document names it;
 // every client downloads the object, replays it on the level, and flags a
 // score whose moves don't solve the level or don't match its counts.
 
@@ -56,9 +58,10 @@ export function sokobanScoreCreate(level, uid) {
 }
 
 // A new best replaces the old one: fewer moves, or as many and fewer pushes.
+// The second call leaves moves out of the fields that may change, so it
+// allows fewer pushes only on as many moves.
 export function sokobanScoreImprove(level, uid) {
-  let d = request.resource.data;
-  let best = resource.data;
   return sokobanScore(level, uid)
-    && (d.moves < best.moves || (d.moves == best.moves && d.pushes < best.pushes));
+    && (improvedBy('moves', 'down', ['pushes', 'solve', 'object', 'createdAt'])
+      || improvedBy('pushes', 'down', ['solve', 'object', 'createdAt']));
 }

@@ -39,7 +39,11 @@ export interface RematchSpec {
   game: string;
   /** The finished match. */
   matchId: string;
-  /** A new match document hosted by `uid`; `createdAt` is added here. */
+  /**
+   * A new match document hosted by `uid`; `createdAt` is added here. In a
+   * two-seat game it names the finished match in `rematchOf`, which the new
+   * match's create rule checks against the finished match.
+   */
   fresh(uid: string): Record<string, unknown>;
   join(connection: Connection, id: string): Promise<void>;
 }

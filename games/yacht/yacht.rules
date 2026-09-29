@@ -15,13 +15,16 @@ rules_version = '2+modules';
 //           SHA-256(salt + nonces '0' to '3'), uppercase hex with C-F removed,
 //           each of the first five characters v (0..11) giving the die v % 6 + 1.
 //           Kept dice keep their value.
+// The reveal's commitment check is the fairness module's commitmentMatches.
+// The dice derivation stays here: it drops C to F from the hex, where
+// digestByte reads bytes. The seat on turn and the next turn use the turns
+// module's seat-list functions.
 // A turn is at most three reveals, then one unused category scored with the
 // points computed here from the stored dice. Totals, turn order and the end
 // of the game (every seat has scored all twelve) are checked on each score.
 
-function yachtMyTurn() {
-  return resource.data.players[resource.data.turn] == request.auth.uid;
-}
+import { isSeatTurn, turnAdvanced } from 'turns';
+import { commitmentMatches } from 'fairness';
 
 function yachtCard() {
   return {'ones': -1, 'twos': -1, 'threes': -1, 'fours': -1, 'fives': -1, 'sixes': -1,
@@ -141,7 +144,7 @@ export function yachtCommit() {
   let after = request.resource.data;
   return request.auth != null
     && before.status == 'playing'
-    && yachtMyTurn()
+    && isSeatTurn(before.players, before.turn)
     && before.commit == ''
     && before.rolls < 3
     && after.commit.matches('[0-9A-F]{64}')
@@ -179,11 +182,11 @@ export function yachtReveal() {
   let k = before.keep;
   return request.auth != null
     && before.status == 'playing'
-    && yachtMyTurn()
+    && isSeatTurn(before.players, before.turn)
     && before.commit != ''
     && n.values().removeAll(['']).size() == before.players.size() - 1
     && after.salt.matches('[0-9A-F]{32}')
-    && hashing.sha256(after.salt).toHexString() == before.commit
+    && commitmentMatches(before.commit, after.salt)
     && after.dice == [k[0] ? before.dice[0] : die[h[0:1]], k[1] ? before.dice[1] : die[h[1:2]],
                       k[2] ? before.dice[2] : die[h[2:3]], k[3] ? before.dice[3] : die[h[3:4]],
                       k[4] ? before.dice[4] : die[h[4:5]]]
@@ -204,7 +207,7 @@ export function yachtScore() {
   let last = before.moveCount + 1 == 12 * n;
   return request.auth != null
     && before.status == 'playing'
-    && yachtMyTurn()
+    && isSeatTurn(before.players, before.turn)
     && before.commit == ''
     && before.rolls > 0
     && before.scores[key][cat] == -1
@@ -214,7 +217,7 @@ export function yachtScore() {
     && yachtTotalsMoved(pts)
     && after.moveCount == before.moveCount + 1
     && after.rolls == 0
-    && after.turn == (last ? t : (t + 1) % n)
+    && (last ? after.turn == t : turnAdvanced(n))
     && (last ? yachtFinal(after.totals, after.winner, n, after.status) : (after.status == 'playing' && after.winner == -1))
     && after.diff(before).affectedKeys().hasOnly(['scores', 'totals', 'turn', 'rolls', 'moveCount', 'lastCategory',
          'lastAction', 'status', 'winner']);

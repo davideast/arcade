@@ -1,57 +1,21 @@
 rules_version = '2';
-
-// Cloud Storage rules for the arcade. `pyric()` serves this file in dev
-// (Storage rules load when the dev server starts; restart it after an edit).
-//
-// Sokoban keeps each solve's move list at
-// `sokoban/{uid}/{level}/{solve}-{moves}-{pushes}.txt`: LURD text, one byte
-// per move, `text/plain`, with custom metadata `level`, `moves` and `pushes`.
-// The client writes the score document `sokoban/{level}/scores/{uid}` first
-// (games/sokoban/sokoban.rules checks it), then uploads the object. An upload
-// is allowed only:
-//   - by the signed-in owner, under their own uid;
-//   - as text/plain of at most 2,000 bytes;
-//   - with exactly the metadata keys level, moves and pushes, the level
-//     matching the path;
-//   - when the owner's score document for that level names this object, the
-//     metadata's counts equal the score's (so the metadata carries the counts
-//     the Firestore rules checked), and the size equals the score's move
-//     count.
-// Only create is granted, so an object is never deleted or has its metadata
-// changed. Production evaluates an upload over an existing object as create,
-// and a rule can't test that the object is absent (`resource == null` errors
-// when it is), so the owner can upload over their own object; the upload must
-// pass the same checks, and a move list that doesn't solve the level is
-// flagged by the replay. Anyone signed in may read, so every client can
-// replay every leaderboard entry.
-//
-// The Firestore lookup reads the (default) database; production's
-// `firestore.get()` in Storage rules does not reach a named database, and the
-// Storage service agent needs the Firestore service agent role for it.
-
 service firebase.storage {
+  function storage_objects__objectName() {
+    return request.method in ['create', 'update'] ? request.resource.name : resource.name;
+  }
+  function matchesDocument(path, field) {
+    return request.auth != null && firestore.get(path).data[field] == storage_objects__objectName();
+  }
   match /b/{bucket}/o {
-    // The Firestore rules fix the score's object to
-    // `sokoban/{uid}/{level}/{solve}-{moves}-{pushes}.txt` for the score at
-    // `sokoban/{level}/scores/{uid}`, so an object named by the score carries
-    // the solve id and the two counts the Firestore rules checked.
     function sokobanUpload(uid, level) {
       let meta = request.resource.metadata;
       let score = firestore.get(/databases/(default)/documents/sokoban/$(level)/scores/$(uid)).data;
-      return request.auth != null && request.auth.uid == uid
-        && request.resource.contentType == 'text/plain'
-        && request.resource.size <= 2000
-        && meta.keys().hasOnly(['level', 'moves', 'pushes'])
-        && meta.level == level
-        && request.resource.name == score.object
-        && meta.moves == string(score.moves)
-        && meta.pushes == string(score.pushes)
-        && request.resource.size == score.moves;
+      return request.auth != null && request.auth.uid == uid && request.resource.contentType == 'text/plain' && request.resource.size <= 2000 && meta.keys().hasOnly(['level', 'moves', 'pushes']) && meta.level == level && matchesDocument(/databases/(default)/documents/sokoban/$(level)/scores/$(uid), 'object') && meta.moves == string(score.moves) && meta.pushes == string(score.pushes) && request.resource.size == score.moves;
     }
-
     match /sokoban/{uid}/{level}/{file} {
       allow read: if request.auth != null;
       allow create: if sokobanUpload(uid, level);
     }
   }
 }
+// @pyric-source-map: [{"generatedLine":2,"authoredLine":38,"authoredCol":1,"authoredFile":"firestore.rules"},{"generatedLine":3,"authoredLine":53,"authoredCol":1,"authoredFile":"storage/objects"},{"generatedLine":6,"authoredLine":69,"authoredCol":8,"authoredFile":"storage/objects"},{"generatedLine":9,"authoredLine":39,"authoredCol":3,"authoredFile":"storage.modules.rules"},{"generatedLine":10,"authoredLine":44,"authoredCol":5,"authoredFile":"storage.modules.rules"},{"generatedLine":11,"authoredLine":45,"authoredCol":7,"authoredFile":"firestore.rules"},{"generatedLine":12,"authoredLine":46,"authoredCol":7,"authoredFile":"firestore.rules"},{"generatedLine":15,"authoredLine":58,"authoredCol":5,"authoredFile":"storage.modules.rules"},{"generatedLine":16,"authoredLine":59,"authoredCol":7,"authoredFile":"storage.modules.rules","expression":"request.auth != null"},{"generatedLine":17,"authoredLine":60,"authoredCol":7,"authoredFile":"storage.modules.rules","expression":"sokobanUpload(uid, level)"}]

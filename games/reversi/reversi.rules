@@ -4,6 +4,7 @@ import { validCreate, validJoin, canCancel } from 'lobby';
 import { onlyFieldsChanged } from 'lifecycle';
 import { isMyTurn, turnFlipped } from 'turns';
 import { isPlaying, moveIncremented } from 'state';
+import { resignedBy } from 'results';
 
 // Reversi match rules. The host plays dark ('d') and moves first; the guest
 // plays light ('l'). The match document follows the stdlib convention (host,
@@ -92,7 +93,7 @@ function reversiResult(d) {
 export function reversiCreate() {
   return validCreate()
     && request.resource.data.keys().hasOnly(['host', 'guest', 'currentTurn', 'status', 'winner', 'moveCount',
-         'board', 'prevBoard', 'lastMove', 'counts', 'full', 'createdAt'])
+         'board', 'prevBoard', 'lastMove', 'counts', 'full', 'createdAt', 'rematchOf'])
     && request.resource.data.currentTurn == 'host'
     && request.resource.data.winner == ''
     && request.resource.data.moveCount == 0
@@ -163,10 +164,7 @@ export function reversiPass() {
     && onlyFieldsChanged(['prevBoard', 'lastMove', 'currentTurn', 'moveCount']);
 }
 
+// The caller resigns their own seat; the other seat wins.
 export function reversiResign() {
-  let uid = request.auth.uid;
-  return request.auth != null && isPlaying()
-    && (uid == resource.data.host || uid == resource.data.guest)
-    && onlyFieldsChanged(['status', 'winner'])
-    && request.resource.data.winner == (uid == resource.data.host ? 'guest' : 'host');
+  return resignedBy(request.auth.uid == resource.data.host ? 'host' : 'guest');
 }

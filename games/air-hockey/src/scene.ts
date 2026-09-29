@@ -489,7 +489,7 @@ export class AirHockeyScene extends Phaser.Scene {
       else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${how}${flagged}`, {
         game: airHockey.id,
         matchId: this.matchId,
-        fresh: (uid) => createdMatch(airHockey, uid),
+        fresh: (uid) => ({ ...createdMatch(airHockey, uid), rematchOf: this.matchId }),
         join: (c, id) => joinMatch(c, airHockey, id),
         open: (id) => (location.hash = `#/play/airhockey/${id}`),
         onError: (error) => this.report(error),

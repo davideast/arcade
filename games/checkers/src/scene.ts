@@ -259,7 +259,7 @@ export class CheckersScene extends Phaser.Scene {
         else this.stopRematch = gameOverWithRematch(connection, this.chrome, result, `${how}${forgedNote}`, {
           game: checkers.id,
           matchId: this.matchId,
-          fresh: (uid) => createdMatch(checkers, uid),
+          fresh: (uid) => ({ ...createdMatch(checkers, uid), rematchOf: this.matchId }),
           join: (c, id) => joinMatch(c, checkers, id),
           open: (id) => (location.hash = `#/play/checkers/${id}`),
           onError: (error) => this.report(error),

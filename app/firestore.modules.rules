@@ -31,13 +31,13 @@ import {
   airHockeyCreate, airHockeyJoin, airHockeyCancel, airHockeyFinish, airHockeyForfeit, airHockeyResign
 } from '../games/air-hockey/airhockey';
 import { sokobanScoreCreate, sokobanScoreImprove } from '../games/sokoban/sokoban';
-import { rematchCreate } from '../packages/turn-net/rematch';
+import { rematchCreate, newMatchOrRematch } from '../packages/turn-net/rematch';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     match /tictactoe/{matchId} {
       allow read: if request.auth != null;
-      allow create: if ticTacToeCreate();
+      allow create: if ticTacToeCreate() && newMatchOrRematch(database, 'tictactoe');
       allow delete: if ticTacToeCancel();
       allow update: if resource.data.status == 'waiting' && (ticTacToeJoin());
       allow update: if request.resource.data.status == 'playing' && resource.data.status == 'playing' && (ticTacToeMove());
@@ -71,7 +71,7 @@ service cloud.firestore {
     }
     match /pool/{matchId} {
       allow read: if request.auth != null;
-      allow create: if poolCreate();
+      allow create: if poolCreate() && newMatchOrRematch(database, 'pool');
       allow delete: if poolCancel();
       allow update: if resource.data.status == 'waiting' && (poolJoin());
       allow update: if request.resource.data.status == 'playing' && resource.data.status == 'playing' && (poolShot());
@@ -80,7 +80,7 @@ service cloud.firestore {
     }
     match /battleship/{matchId} {
       allow read: if request.auth != null;
-      allow create: if battleshipCreate();
+      allow create: if battleshipCreate() && newMatchOrRematch(database, 'battleship');
       allow delete: if battleshipCancel();
       allow update: if request.resource.data.status == 'placing' && resource.data.status == 'waiting' && (battleshipJoin());
       allow update: if resource.data.status == 'placing' && (battleshipReady(database, matchId));
@@ -98,7 +98,7 @@ service cloud.firestore {
     }
     match /chess/{matchId} {
       allow read: if request.auth != null;
-      allow create: if chessCreate();
+      allow create: if chessCreate() && newMatchOrRematch(database, 'chess');
       allow delete: if chessCancel();
       allow update: if resource.data.status == 'waiting' && (chessJoin());
       allow update: if resource.data.status == 'playing' && request.resource.data.status in ['playing', 'won', 'draw'] && (chessMove());
@@ -106,7 +106,7 @@ service cloud.firestore {
     }
     match /checkers/{matchId} {
       allow read: if request.auth != null;
-      allow create: if checkersCreate();
+      allow create: if checkersCreate() && newMatchOrRematch(database, 'checkers');
       allow delete: if checkersCancel();
       allow update: if resource.data.status == 'waiting' && (checkersJoin());
       allow update: if resource.data.status == 'playing' && request.resource.data.status in ['playing', 'won'] && (checkersMove());
@@ -125,7 +125,7 @@ service cloud.firestore {
     }
     match /reversi/{matchId} {
       allow read: if request.auth != null;
-      allow create: if reversiCreate();
+      allow create: if reversiCreate() && newMatchOrRematch(database, 'reversi');
       allow delete: if reversiCancel();
       allow update: if resource.data.status == 'waiting' && (reversiJoin());
       allow update: if request.resource.data.lastMove.at != '' && request.resource.data.status in ['playing', 'won', 'draw'] && (reversiMove());
@@ -134,7 +134,7 @@ service cloud.firestore {
     }
     match /airhockey/{matchId} {
       allow read: if request.auth != null;
-      allow create: if airHockeyCreate();
+      allow create: if airHockeyCreate() && newMatchOrRematch(database, 'airhockey');
       allow delete: if airHockeyCancel();
       allow update: if resource.data.status == 'waiting' && (airHockeyJoin());
       allow update: if request.resource.data.endedBy == 'goals' && (airHockeyFinish());

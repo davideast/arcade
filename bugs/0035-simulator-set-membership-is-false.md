@@ -5,7 +5,8 @@ severity: major
 package: pyric
 pyric_commit: 8b3c2c84
 found_in: restructuring the Reversi move rule to fit production's expression budget
-status: open
+status: fixed
+fixed_in: eb748488 (#815, 4774386c; #819, 4494f1e7)
 ---
 ## Summary
 
@@ -47,3 +48,9 @@ Before the map branch, test for the set wrapper and search its items with `rules
 ## Workaround in pyric-games
 
 The Reversi move rule tests sets with `hasAll` and `hasAny`, which the simulator evaluates correctly, and never with `in`.
+
+## Fixed
+
+Fixed by Pyric PRs #815, merged as 4774386c, and #819, merged as 4494f1e7, and verified on Pyric main eb748488 (vendored as local-7). The simulator tests membership in a set, and Firestore and Storage share one `in` operator. `bun bugs/repro/0035.ts` exits 0: all four rules are ALLOW, as in production.
+
+The Reversi move rule keeps its `hasAll` and `hasAny` checks, which production evaluates the same way.
